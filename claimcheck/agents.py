@@ -54,12 +54,29 @@ def _has_quantity(claim: dict) -> bool:
     return False
 
 
+def _guardrails() -> list[dict] | None:
+    """Otari guardrail entries pointing at our own open-weight guardrail service (when deployed)."""
+    if not config.GUARD_URL:
+        return None
+    return [{"profile": "prompt-injection", "mode": "block", "url": config.GUARD_URL, "on_unavailable": "monitor"},
+            {"profile": "privacy", "mode": "block", "url": config.GUARD_URL, "on_unavailable": "monitor"}]
+
+
+def _mcp() -> list[dict] | None:
+    if not config.MCP_URL:
+        return None
+    return [{"name": "claimcheck-archive", "url": config.MCP_URL,
+             "purpose_hint": "Use wayback_snapshot to see what a cited page originally said; use "
+                             "wikipedia_summary and wikidata_facts for background facts (places, dates, populations).",
+             "allowed_tools": ["wayback_snapshot", "wikipedia_summary", "wikidata_facts"]}]
+
+
 async def extract(client: Otari, post: str) -> tuple[list[dict], Step]:
     content, step = await client.chat(
         "extractor", config.MODELS["extractor"],
         [{"role": "system", "content": EXTRACTOR_PROMPT.replace("MAXCLAIMS", str(config.MAX_CLAIMS))},
          {"role": "user", "content": f"POST:\n<<<\n{post}\n>>>"}],
-        json_mode=True, max_tokens=900, temperature=0)
+        json_mode=True, max_tokens=900, temperature=0, guardrails=_guardrails())
     data = parse_json(content)
     claims = data.get("claims", data) if isinstance(data, dict) else data
     out = []
@@ -78,12 +95,13 @@ async def extract(client: Otari, post: str) -> tuple[list[dict], Step]:
 
 
 async def investigate(client: Otari, claim: dict) -> tuple[dict, Step]:
-    tools = [{"type": "otari_web_search", "max_uses": config.SEARCHES_PER_CLAIM}, {"type": "otari_web_fetch"}]
+    tools = [{"type": "otari_web_search", "max_uses": config.SEARCHES_PER_CLAIM},
+             {"type": "otari_web_fetch", "max_uses": 1}]
     messages = [{"role": "system", "content": INVESTIGATOR_PROMPT.replace("TODAY", TODAY)},
                 {"role": "user", "content": f"CLAIM: {claim['text']}\nSuggested search: {claim['search_query']}"}]
     try:
         content, step = await client.chat("investigator", config.MODELS["investigator"], messages,
-                                          tools=tools, max_tokens=1500)
+                                          tools=tools, max_tokens=1500, mcp_servers=_mcp())
     except OtariError as e:
         if e.status in (402, 403):  # tools not enabled -> research without the web, flagged
             step = Step(role="investigator", model_requested=config.MODELS["investigator"], error=e.detail)

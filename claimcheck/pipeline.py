@@ -36,19 +36,27 @@ async def _check_claim(client: Otari, claim: dict, q: asyncio.Queue) -> None:
         await q.put(_step_event(jstep, cid))
         await q.put({"type": "verdict", "claim_id": cid, "result": verdict})
     except OtariError as e:
-        await q.put({"type": "error", "claim_id": cid, "status": e.status, "code": e.code, "message": e.detail})
+        kind = "budget" if (e.status in (402, 429) or "budget" in e.detail.lower()) else "error"
+        await q.put({"type": kind, "claim_id": cid, "status": e.status, "code": e.code, "message": e.detail})
     except Exception as e:  # keep other claims running
         await q.put({"type": "error", "claim_id": cid, "message": f"{type(e).__name__}: {e}"})
 
 
 async def run(post: str, api_key: str | None = None, user: str | None = None) -> AsyncIterator[dict]:
     client = Otari(api_key=api_key, user=user)
+    if user:
+        yield {"type": "user", "user": user}
     try:
         yield {"type": "status", "message": "Pulling out the claims"}
         try:
             claims, step = await agents.extract(client, post)
         except OtariError as e:
-            yield {"type": "error", "status": e.status, "code": e.code, "message": e.detail}
+            if e.code == "guardrail_violation" or (e.status == 403 and "guardrail" in e.detail.lower()):
+                yield {"type": "blocked", "message": e.detail}
+            elif e.status in (402, 429) or "budget" in e.detail.lower():
+                yield {"type": "budget", "status": e.status, "message": e.detail}
+            else:
+                yield {"type": "error", "status": e.status, "code": e.code, "message": e.detail}
             return
         yield _step_event(step)
         yield {"type": "claims", "claims": claims}
