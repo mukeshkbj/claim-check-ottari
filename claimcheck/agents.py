@@ -59,7 +59,7 @@ Write "explanation" and "what_is_true" in the claim's language (given as "langua
 def _has_quantity(claim: dict) -> bool:
     """True if the claim states a quantity worth recomputing (not just a year)."""
     for f in [*claim.get("figures", []), *re.findall(r"[\d][\d,.]*\s*%?", claim["text"])]:
-        f = str(f).strip()
+        f = str(f).strip().rstrip(".,;:!?)")
         if "%" in f or re.search(r"\d", f) and not re.fullmatch(r"(1[5-9]|20)\d\d", f):
             return True
     return False
@@ -105,13 +105,15 @@ async def extract(client: Otari, post: str, simulate_outage: bool = False) -> tu
          {"role": "user", "content": f"POST:\n<<<\n{post}\n>>>"}],
         json_mode=simulate_outage, max_tokens=900, temperature=0, guardrails=_guardrails())
     data = parse_json(content)
+    if isinstance(data, dict) and not isinstance(data.get("claims", []), list):
+        data["claims"] = []
     language = (data.get("language") if isinstance(data, dict) else None) or "English"
     claims = data.get("claims", data) if isinstance(data, dict) else data
     out = []
     for i, c in enumerate(claims[: config.MAX_CLAIMS]):
         if not isinstance(c, dict) or not c.get("text"):
             continue
-        c.setdefault("id", f"c{i + 1}")
+        c["id"] = f"c{len(out) + 1}"  # our own ids: model-chosen ids end up in DOM selectors
         c["kind"] = str(c.get("kind") or "factual").lower()
         if c["kind"] not in ("numeric", "factual", "quote", "opinion"):
             c["kind"] = "factual"
@@ -129,7 +131,7 @@ async def investigate(client: Otari, claim: dict, rid: str | None = None) -> tup
     tools = [{"type": "otari_web_search", "max_uses": config.SEARCHES_PER_CLAIM}]
     if config.USE_WEB_FETCH:  # fetching full pages doubled latency and cost in benchmarks; search returns page extracts
         tools.append({"type": "otari_web_fetch"})
-    messages = [{"role": "system", "content": INVESTIGATOR_PROMPT.replace("TODAY", TODAY)},
+    messages = [{"role": "system", "content": INVESTIGATOR_PROMPT.replace("TODAY", dt.date.today().isoformat())},
                 {"role": "user", "content": f"CLAIM: {claim['text']}\nSuggested search: {claim['search_query']}"}]
     try:
         content, step = await client.chat("investigator", config.MODELS["investigator"], messages,

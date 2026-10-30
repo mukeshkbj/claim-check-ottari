@@ -17,6 +17,12 @@ MAX_ITEMS = 500
 MAX_AGE_S = 7 * 24 * 3600
 
 
+# Words that may differ between two phrasings of the same claim. Negations and names never appear here,
+# so "X is not in Paris" / "X is in Berlin" can never reuse "X is in Paris".
+FILLER = {"a", "an", "the", "that", "this", "it", "its", "of", "and", "really", "actually", "just", "did", "you",
+          "know", "breaking", "claim", "claims", "says", "said", "reportedly", "currently", "now", "today"}
+
+
 def _tokens(text: str) -> set[str]:
     return set(re.findall(r"\w+", text.lower()))
 
@@ -54,8 +60,7 @@ class Memory:
             if now - it["ts"] > MAX_AGE_S or _numbers(it["text"]) != nums:
                 continue
             t2 = _tokens(it["text"])
-            jac = len(toks & t2) / max(1, len(toks | t2))
-            if jac < config.MEMORY_MIN_OVERLAP:
+            if (toks ^ t2) - FILLER:  # any meaningful word differs (a name, a negation, a place): not the same claim
                 continue
             sim = _cos(emb, it["emb"])
             if sim >= config.MEMORY_MIN_SIMILARITY and sim > best_sim:
@@ -65,11 +70,15 @@ class Memory:
         return None
 
     def add(self, text: str, emb: list[float], verdict: dict, research: dict) -> None:
-        if not emb or verdict.get("verdict") in (None, "Can't verify", "Opinion"):
+        if not emb or verdict.get("verdict") in (None, "Can't verify", "Opinion", "Unsupported"):
+            return
+        # Only remember verdicts backed by at least two sources Otari actually retrieved
+        if sum(1 for e in research.get("evidence", []) if e.get("verified_url")) < 2:
             return
         self.items.append({"text": text, "emb": emb, "verdict": verdict, "ts": time.time(),
                            "research": {"evidence": research.get("evidence", []),
                                         "summary": research.get("summary", "")}})
+        self.items = self.items[-MAX_ITEMS:]
         self._save()
 
 

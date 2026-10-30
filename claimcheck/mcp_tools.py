@@ -5,6 +5,8 @@ Tools hit free public APIs only: the Wayback Machine, Wikipedia and Wikidata.
 from __future__ import annotations
 
 import os
+import re
+from urllib.parse import quote
 
 import httpx
 from mcp.server.fastmcp import FastMCP
@@ -43,6 +45,8 @@ async def wayback_snapshot(url: str, timestamp: str = "") -> dict:
 @mcp.tool()
 async def wikipedia_summary(title: str, lang: str = "en") -> dict:
     """Get the lead summary of a Wikipedia article (background facts, dates, places)."""
+    if not re.fullmatch(r"[a-z]{2,3}(-[a-z]{2,8})?", lang or ""):
+        lang = "en"  # the language code becomes part of the hostname: never let it be anything else
     async with httpx.AsyncClient(timeout=20, headers=UA, follow_redirects=True) as c:
         s = await c.get(f"https://{lang}.wikipedia.org/w/api.php", params={
             "action": "query", "list": "search", "srsearch": title, "srlimit": 1, "format": "json"})
@@ -50,7 +54,7 @@ async def wikipedia_summary(title: str, lang: str = "en") -> dict:
         if not hits:
             return {"found": False, "query": title}
         page = hits[0]["title"]
-        r = await c.get(f"https://{lang}.wikipedia.org/api/rest_v1/page/summary/{page.replace(' ', '_')}")
+        r = await c.get(f"https://{lang}.wikipedia.org/api/rest_v1/page/summary/{quote(page.replace(' ', '_'), safe='')}")
     j = r.json()
     return {"found": True, "title": j.get("title"), "extract": j.get("extract"),
             "url": (j.get("content_urls") or {}).get("desktop", {}).get("page")}

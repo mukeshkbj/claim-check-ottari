@@ -4,3 +4,8 @@ __pycache__/
 *.pyc
 scratch/
 data/
+
+# any copy of an env file holds real keys
+.env*
+!.env.example
+.pytest_cache/

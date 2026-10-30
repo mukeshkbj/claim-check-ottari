@@ -10,10 +10,22 @@ import time
 from urllib.parse import parse_qs
 
 _calls: dict[str, list[dict]] = {}
+_issued: dict[str, float] = {}
 _TTL_S = 600
+MAX_BODY = 1_000_000
+
+
+def issue(rid: str) -> None:
+    """Called by the pipeline before it hands Otari an MCP URL carrying this rid."""
+    now = time.time()
+    for k in [k for k, t in _issued.items() if now - t > _TTL_S]:
+        _issued.pop(k, None)
+    _issued[rid] = now
 
 
 def record(rid: str, tool: str, args: dict | None) -> None:
+    if rid not in _issued:
+        return
     now = time.time()
     for k in [k for k, v in _calls.items() if v and now - v[-1]["t"] > _TTL_S]:
         _calls.pop(k, None)
@@ -21,6 +33,7 @@ def record(rid: str, tool: str, args: dict | None) -> None:
 
 
 def pop(rid: str) -> list[dict]:
+    _issued.pop(rid, None)
     return [{"tool": c["tool"], "args": c["args"]} for c in _calls.pop(rid, [])]
 
 
@@ -41,6 +54,10 @@ class MCPRecorder:
             msg = await receive()
             body += msg.get("body", b"")
             more = msg.get("more_body", False)
+            if len(body) > MAX_BODY:  # not a real MCP call from Otari
+                await send({"type": "http.response.start", "status": 413, "headers": []})
+                await send({"type": "http.response.body", "body": b""})
+                return
         try:
             data = json.loads(body or b"null")
             for item in data if isinstance(data, list) else [data]:

@@ -38,4 +38,4 @@ USE_WEB_FETCH = os.getenv("USE_WEB_FETCH", "0") == "1"
 DATA_DIR = os.getenv("DATA_DIR", "data")
 MEMORY_MIN_SIMILARITY = float(os.getenv("MEMORY_MIN_SIMILARITY", "0.93"))
 MEMORY_MIN_OVERLAP = float(os.getenv("MEMORY_MIN_OVERLAP", "0.8"))
-MAX_IMAGE_CHARS = 8_000_000  # ~6 MB image as a data URL
+MAX_IMAGE_CHARS = 4_000_000  # ~6 MB image as a data URL

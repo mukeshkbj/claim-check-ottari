@@ -55,6 +55,8 @@ select{font:inherit;padding:6px;border-radius:6px;border:1px solid var(--line);b
 .subhead{font-size:12px;color:var(--quiet);margin:2px 0 6px;text-transform:uppercase;letter-spacing:.05em}
 .fhead{display:flex;justify-content:space-between;align-items:baseline}.fhead span{font-size:12px;color:var(--quiet)}
 
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(37,99,235,.5)}50%{box-shadow:0 0 0 6px rgba(37,99,235,0)}}
+#go.pulse{animation:pulse 1.4s ease-in-out 3}
 </style>
 </head>
 <body>
@@ -198,7 +200,10 @@ if (shared){
 $("#sample").onclick = () => { $("#post").value = SAMPLE; };
 $("#go").onclick = check;
 const params = new URLSearchParams(location.search);
-if (params.get("q")) { $("#post").value = params.get("q").slice(0, 4000); setTimeout(check, 300); }
+if (params.get("q")) {  // prefill only: a link should never spend money on its own
+  $("#post").value = params.get("q").slice(0, 4000);
+  const b = $("#go"); if (b) { b.focus(); b.classList.add("pulse"); }
+}
 
 function claimCard(c){
   const d = document.createElement("div");
@@ -234,7 +239,7 @@ function handle(ev){
     case "transcript": $("#claims").insertAdjacentHTML("beforeend", `<div class="card claim"><div class="kind">Read from the screenshot</div><div class="transcript">${esc(ev.text || "(no text found)")}</div></div>`); break;
     case "report": showShare(ev.id); break;
     case "evidence": card.querySelector(".ev").innerHTML = (ev.research.evidence || []).map(e =>
-      `<div class="src ${esc(e.stance)}"><a href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.title || e.url)}</a>
+      `<div class="src ${esc(e.stance)}">${/^https?:\/\//i.test(e.url || "") ? `<a href="${esc(e.url)}" target="_blank" rel="noopener noreferrer">${esc(e.title || e.url)}</a>` : esc(e.title || e.url || "source")}
        ${e.publisher ? " · " + esc(e.publisher) : ""}<br><q>${esc(e.quote)}</q></div>`).join("") || `<div class="src">${esc(ev.research.summary)}</div>`; break;
     case "numbers": { const n = ev.numbers; card.querySelector(".nm").innerHTML = n.applicable
       ? `<div class="nums"><b>Numbers check:</b> ${esc(n.computation)} = <b>${esc(n.result)}</b> (claimed ${esc(n.claimed)}) ${n.consistent ? "✓ consistent" : "✗ doesn't match"}<code>${esc(n.code)}</code></div>`

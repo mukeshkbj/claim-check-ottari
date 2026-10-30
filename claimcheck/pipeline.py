@@ -38,6 +38,7 @@ async def _check_claim(client: Otari, claim: dict, q: asyncio.Queue, run_id: str
                 "matched": hit["text"], "similarity": hit["similarity"], "age_hours": age_h}})
             return
         await q.put({"type": "status", "claim_id": cid, "message": "Searching for sources"})
+        mcp_log.issue(rid)  # only MCP calls carrying an rid we handed out get recorded
         research, step = await agents.investigate(client, claim, rid)
         step.mcp_calls = mcp_log.pop(rid)  # MCP tools Otari actually called for this claim
         await q.put(_step_event(step, cid))
@@ -67,6 +68,7 @@ async def run(post: str, api_key: str | None = None, user: str | None = None,
     session = f"claimcheck-{run_id}"
     client = Otari(api_key=api_key, user=user, session=session)
     events: list[dict] = []
+    tasks: list[asyncio.Task] = []
 
     def emit(ev):
         if ev:
@@ -100,6 +102,9 @@ async def run(post: str, api_key: str | None = None, user: str | None = None,
             else:
                 yield emit(_budget_or_error(e))
             return
+        except Exception as e:  # unparseable model output etc.: tell the user instead of dropping the stream
+            yield emit({"type": "error", "message": f"Couldn't pull out the claims ({type(e).__name__}). Please try again."})
+            return
         yield emit(_step_event(step))
         yield emit({"type": "claims", "claims": claims})
 
@@ -115,7 +120,7 @@ async def run(post: str, api_key: str | None = None, user: str | None = None,
                 pass  # memory is optional
 
         q: asyncio.Queue = asyncio.Queue()
-        tasks = [asyncio.create_task(_check_claim(client, c, q, run_id, embs.get(c["id"]))) for c in claims]
+        tasks[:] = [asyncio.create_task(_check_claim(client, c, q, run_id, embs.get(c["id"]))) for c in claims]
         done = asyncio.gather(*tasks)
         while not (done.done() and q.empty()):
             try:
@@ -128,4 +133,7 @@ async def run(post: str, api_key: str | None = None, user: str | None = None,
         reports.save(run_id, post, events)
         yield {"type": "report", "id": run_id}
     finally:
+        for t in tasks:  # the browser went away mid-check: stop spending on it
+            if not t.done():
+                t.cancel()
         await client.close()

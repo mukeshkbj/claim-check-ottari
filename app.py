@@ -5,8 +5,11 @@ Also serves, for the Otari gateway to call once deployed:
   /guard/<token>/validate  guardrail service backed by open-weight safety models
 """
 import asyncio
+import collections
 import contextlib
+import hmac
 import json
+import time
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -30,6 +33,46 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="Claim Check", lifespan=lifespan)
 app.mount("/mcp", MCPRecorder(mcp.streamable_http_app()))
 STATIC = Path(__file__).parent / "static"
+
+
+# ---- Abuse limits: this is a public demo spending real money on every check
+RATE_PER_HOUR = int(__import__("os").getenv("RATE_PER_HOUR", "12"))
+MAX_CONCURRENT = int(__import__("os").getenv("MAX_CONCURRENT_CHECKS", "3"))
+MAX_REQUEST_BYTES = config.MAX_IMAGE_CHARS + 20_000
+_hits: dict[str, collections.deque] = collections.defaultdict(collections.deque)
+_running = asyncio.Semaphore(MAX_CONCURRENT)
+
+
+def _client_ip(request: Request) -> str:
+    fwd = request.headers.get("x-forwarded-for", "")
+    return fwd.split(",")[0].strip() if fwd else (request.client.host if request.client else "?")
+
+
+def _rate_limited(ip: str) -> bool:
+    now, q = time.time(), _hits[ip]
+    while q and now - q[0] > 3600:
+        q.popleft()
+    if len(q) >= RATE_PER_HOUR:
+        return True
+    q.append(now)
+    if len(_hits) > 5000:  # forget idle clients
+        for k in [k for k, v in _hits.items() if not v]:
+            _hits.pop(k, None)
+    return False
+
+
+@app.middleware("http")
+async def limit_body(request: Request, call_next):
+    if request.method == "POST" and request.url.path == "/api/check":
+        try:
+            size = int(request.headers.get("content-length", "0"))
+        except ValueError:
+            size = 0
+        if size > MAX_REQUEST_BYTES:
+            from fastapi.responses import JSONResponse
+            return JSONResponse({"detail": "Request too large (screenshots are resized in the browser to stay small)."},
+                                status_code=413)
+    return await call_next(request)
 
 
 class CheckRequest(BaseModel):
@@ -76,21 +119,28 @@ async def check(req: CheckRequest, request: Request):
     if req.image and not req.image.startswith(("data:image/png;base64,", "data:image/jpeg;base64,", "data:image/webp;base64,")):
         raise HTTPException(status_code=422, detail="Screenshot must be a PNG, JPEG or WebP image.")
     key, user = None, None
-    if req.volunteer in config.VOLUNTEER_KEYS:
+    if req.volunteer:
+        if req.volunteer not in config.VOLUNTEER_KEYS:
+            raise HTTPException(status_code=422, detail="Unknown volunteer.")
         key, user = config.VOLUNTEER_KEYS[req.volunteer], req.volunteer  # their own key + budget
+    if _rate_limited(_client_ip(request)):
+        raise HTTPException(status_code=429, detail=f"Rate limit: {RATE_PER_HOUR} checks per hour per visitor on this demo.")
+    if _running.locked():
+        raise HTTPException(status_code=429, detail="The demo is busy with other checks right now. Try again in a minute.")
 
     async def events():
-        async for ev in run(req.post, api_key=key, user=user, simulate_outage=req.simulate_outage, image=req.image):
-            if await request.is_disconnected():
-                break
-            yield f"data: {json.dumps(ev)}\n\n"
+        async with _running:
+            async for ev in run(req.post, api_key=key, user=user, simulate_outage=req.simulate_outage, image=req.image):
+                if await request.is_disconnected():
+                    break
+                yield f"data: {json.dumps(ev)}\n\n"
     return StreamingResponse(events(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 # ---- Guardrail service for Otari (contract: POST /validate -> {profile, result:{valid, score, explanation}})
 def _check_token(token: str) -> None:
-    if not config.GUARD_TOKEN or token != config.GUARD_TOKEN:
+    if not config.GUARD_TOKEN or not hmac.compare_digest(token.encode(), config.GUARD_TOKEN.encode()):
         raise HTTPException(status_code=404)
 
 
