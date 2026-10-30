@@ -7,6 +7,16 @@ Built for the Mozilla Otari Hackathon - Devs Wilding Online (DoraHacks), branch 
 
 **Live demo:** https://claim-check-tr4f.onrender.com (free tier - first load can take ~50 s to wake up)
 
+## Firefox extension
+Select any claim on a web page, right-click, and choose **Check this claim with Claim Check**: the app opens with your selection and runs the check.
+Load it from `about:debugging` > *This Firefox* > **Load Temporary Add-on** and pick `extension/firefox/manifest.json` (or `extension/claim-check-firefox.xpi`).
+It only has the `contextMenus` permission and sends nothing until you choose the menu item. See [extension/firefox/README.md](extension/firefox/README.md).
+
+## Live feature panel
+The app shows which Otari features each check actually used, as tiles that light up from real response data: models served, routing
+policy and fallback (`Otari-Fallback` header), web search calls (`otari_tool_calls`), MCP tools Otari really called on our server,
+guardrail verdicts (`Otari-Guardrails` header), the volunteer's own key and budget, and metered spend.
+
 ## Quick start
 ```bash
 python -m venv .venv

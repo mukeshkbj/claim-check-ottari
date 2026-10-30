@@ -164,8 +164,11 @@ async def check_numbers(client: Otari, claim: dict, research: dict) -> tuple[dic
                                           tools=[{"type": "otari_code_execution"}], max_tokens=1200, temperature=0)
     except OtariError as e:
         if e.status in (402, 403):
-            return {"applicable": False, "note": f"Code execution unavailable: {e.detail}"}, \
-                Step(role="numbers", model_requested=config.MODELS["numbers"], error=e.detail)
+            short = ("Code execution isn't available on hosted Otari yet (pricing_required, "
+                     "github.com/mozilla-ai/otari/issues/2719), so the numbers weren't re-run."
+                     if e.code == "pricing_required" or "pricing" in e.detail else f"Code execution unavailable: {e.detail}")
+            return {"applicable": False, "note": short}, \
+                Step(role="numbers", model_requested=config.MODELS["numbers"], error=short)
         raise
     try:
         return parse_json(content), step

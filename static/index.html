@@ -95,7 +95,8 @@ const TILES = [
 let F;
 function resetF(){ F = {models:new Set(), roles:new Set(), policy:false, fell:null, searches:0, mcpAttached:false,
   mcpCalls:[], guards:[], blocked:false, user:null, overBudget:false, numbersTried:false, numbersOk:false, spend:0}; renderF(); }
-const short = m => String(m || "").split("/").pop().split(":").pop();
+// Friendly model names: drop the provider path and Bedrock's region/vendor prefix and version suffix
+const short = m => String(m || "").split("/").pop().replace(/^(us|eu|apac)\.[a-z]+\./, "").replace(/-v\d+:\d+$/, "").replace(/^[a-z]+:/, "");
 function tile(id, state, detail){ return [id, state, detail]; }
 function renderF(){
   const t = {};
@@ -120,7 +121,9 @@ function featStep(s){
   F.searches += (s.tool_calls || []).filter(c => /web_(search|fetch)/.test(c.type || "")).length;
   if (s.mcp && s.mcp.length) F.mcpAttached = true;
   F.mcpCalls.push(...(s.mcp_calls || []));
-  if (s.guardrails && s.guardrails.length) F.guards = s.guardrails;
+  if (s.guardrails && s.guardrails.length){ F.guards = s.guardrails;
+    // our guardrail service runs these open-weight models for Otari's guardrail hook
+    if (s.guardrails.some(g => g.valid !== null)){ F.models.add("Llama-Guard-4"); F.models.add("gpt-oss-safeguard-20b"); F.roles.add("guardrails"); } }
   if (s.cost_usd) F.spend += s.cost_usd;
   if (s.role === "numbers"){ F.numbersTried = true; if (!s.error) F.numbersOk = true; }
   renderF();
