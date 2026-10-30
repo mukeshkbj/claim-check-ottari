@@ -4,10 +4,20 @@ Tools hit free public APIs only: the Wayback Machine, Wikipedia and Wikidata.
 """
 from __future__ import annotations
 
+import os
+
 import httpx
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
-mcp = FastMCP("claim-check-tools", stateless_http=True, json_response=True)
+# Public server: allow our deployed hostname (DNS-rebinding protection is for localhost servers).
+_host = (os.getenv("RENDER_EXTERNAL_HOSTNAME") or "").strip()
+_security = TransportSecuritySettings(
+    enable_dns_rebinding_protection=bool(_host),
+    allowed_hosts=[_host, f"{_host}:*", "127.0.0.1:*", "localhost:*"] if _host else [],
+    allowed_origins=[f"https://{_host}"] if _host else [],
+)
+mcp = FastMCP("claim-check-tools", stateless_http=True, json_response=True, transport_security=_security)
 mcp.settings.streamable_http_path = "/"
 UA = {"User-Agent": "ClaimCheck/0.1 (Mozilla Otari hackathon; https://github.com/mukeshkbj/claim-check-ottari)"}
 
