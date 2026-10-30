@@ -8,16 +8,18 @@ import asyncio
 import collections
 import contextlib
 import hmac
+import html
 import json
 import os
 import time
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
-from claimcheck import config, guard, reports
+from claimcheck import agents, card, config, guard, reports
+from claimcheck.otari import Otari, OtariError
 from claimcheck.mcp_log import MCPRecorder
 from claimcheck.mcp_tools import mcp
 from claimcheck.pipeline import run
@@ -54,11 +56,11 @@ def _client_ip(request: Request) -> str:
     return request.client.host if request.client else "?"
 
 
-def _rate_limited(ip: str) -> bool:
+def _rate_limited(ip: str, limit: int | None = None) -> bool:
     now, q = time.time(), _hits[ip]
     while q and now - q[0] > 3600:
         q.popleft()
-    if len(q) >= RATE_PER_HOUR:
+    if len(q) >= (limit or RATE_PER_HOUR):
         return True
     q.append(now)
     if len(_hits) > 5000:  # forget idle clients
@@ -100,8 +102,63 @@ def index():
 
 
 @app.get("/r/{report_id}")
-def shared_report(report_id: str):
-    return FileResponse(STATIC / "index.html")  # the page replays the saved report
+def shared_report(report_id: str, request: Request):
+    """The page replays the saved report; link-preview tags (Open Graph / Twitter) point at the share card."""
+    page = (STATIC / "index.html").read_text(encoding="utf-8")
+    rep = reports.load(report_id)
+    rows = reports.summarize(rep) if rep else []
+    if rows:
+        base = config.PUBLIC_URL or str(request.base_url).rstrip("/")
+        title = f"Claim Check: {rows[0]['verdict']} - {rows[0]['text']}"[:150]
+        desc = (rows[0].get("explanation") or "Verdicts with sources, checked by open-weight models through Otari.")[:300]
+        e = lambda x: html.escape(x, quote=True)
+        tags = (f'<meta property="og:type" content="article"><meta property="og:title" content="{e(title)}">'
+                f'<meta property="og:description" content="{e(desc)}">'
+                f'<meta property="og:image" content="{e(base)}/r/{report_id}/card.png">'
+                f'<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">'
+                f'<meta property="og:url" content="{e(base)}/r/{report_id}"><meta name="twitter:card" content="summary_large_image">'
+                f'<meta name="twitter:title" content="{e(title)}"><meta name="twitter:description" content="{e(desc)}">'
+                f'<meta name="twitter:image" content="{e(base)}/r/{report_id}/card.png">')
+        page = page.replace("</head>", tags + "\n</head>", 1)
+    return HTMLResponse(page)
+
+
+@app.get("/r/{report_id}/card.png")
+def share_card(report_id: str, request: Request):
+    rep = reports.load(report_id)
+    rows = reports.summarize(rep) if rep else []
+    if not rows:
+        raise HTTPException(status_code=404)
+    host = (config.PUBLIC_URL or str(request.base_url)).split("://")[-1].rstrip("/")
+    return Response(card.card_for(report_id, rows, host), media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=86400"})
+
+
+class ReplyRequest(BaseModel):
+    report_id: str = Field(max_length=32)
+
+
+@app.post("/api/reply")
+async def draft_reply(req: ReplyRequest, request: Request):
+    """A calm, sourced reply someone could post under the original post. Cached per report."""
+    rep = reports.load(req.report_id)
+    rows = reports.summarize(rep) if rep else []
+    if not rows:
+        raise HTTPException(status_code=404, detail="Report not found.")
+    if rep.get("reply"):
+        return rep["reply"]
+    if _rate_limited(_client_ip(request) + "#reply", limit=RATE_PER_HOUR * 2):
+        raise HTTPException(status_code=429, detail="Too many replies drafted this hour. Try again later.")
+    client = Otari(session=f"claimcheck-{req.report_id}")
+    try:
+        text, step = await agents.draft_reply(client, rows, rows[0].get("language", "English"))
+    except OtariError as e:
+        raise HTTPException(status_code=502, detail=f"Couldn't draft a reply: {e.detail}")
+    finally:
+        await client.close()
+    out = {"reply": text, "step": step.as_dict()}
+    reports.save_extra(req.report_id, "reply", out)
+    return out
 
 
 @app.get("/api/reports/{report_id}")

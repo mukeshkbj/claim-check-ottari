@@ -16,7 +16,11 @@ MODELS = {
     "guard_injection": os.getenv("MODEL_GUARD_INJECTION", "openai/gpt-oss-safeguard-20b"),
     "reader": os.getenv("MODEL_READER", "google/gemma-3-27b-it"),        # reads screenshots of posts
     "embedder": os.getenv("MODEL_EMBEDDER", "alibaba/qwen3-embedding-0.6b"),  # 'already checked' memory
+    "judge2": os.getenv("MODEL_JUDGE2", "mistralai/mistral-small-3.2-24b-instruct-2506"),  # second opinion, other family (2.5 s vs 15 s for Llama 3.3 70B)
+    "fetcher": os.getenv("MODEL_FETCHER", "cc-investigator"),            # reads a linked article via web fetch
+    "replier": os.getenv("MODEL_REPLIER", "google/gemma-3-27b-it"),  # drafts a calm reply
 }
+SECOND_OPINION = os.getenv("SECOND_OPINION", "1") == "1"
 
 # Public URL of this app once deployed (Render). Enables Otari -> our MCP server and guardrail service.
 # Render sets RENDER_EXTERNAL_URL automatically; PUBLIC_URL overrides it elsewhere.

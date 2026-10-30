@@ -1,11 +1,44 @@
 {
   "manifest_version": 3,
   "name": "Claim Check",
-  "version": "0.1.0",
-  "description": "Right-click any claim on the web and fact-check it with open-weight AI agents running on Otari.",
-  "browser_specific_settings": { "gecko": { "id": "claim-check@mukeshkbj.github.io", "strict_min_version": "115.0" } },
-  "permissions": ["contextMenus"],
-  "background": { "scripts": ["background.js"] },
-  "action": { "default_title": "Open Claim Check", "default_icon": "icon.svg" },
-  "icons": { "48": "icon.svg", "96": "icon.svg" }
+  "version": "0.2.0",
+  "description": "Right-click a claim or a link and fact-check it in the sidebar with open-weight AI agents running on Otari.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "claim-check@mukeshkbj.github.io",
+      "strict_min_version": "115.0",
+      "data_collection_permissions": {
+        "required": [
+          "websiteContent",
+          "browsingActivity"
+        ]
+      }
+    }
+  },
+  "permissions": [
+    "contextMenus",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://claim-check-tr4f.onrender.com/*"
+  ],
+  "background": {
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "sidebar_action": {
+    "default_title": "Claim Check",
+    "default_panel": "sidebar.html",
+    "default_icon": "icon.svg",
+    "open_at_install": false
+  },
+  "action": {
+    "default_title": "Open Claim Check",
+    "default_icon": "icon.svg"
+  },
+  "icons": {
+    "48": "icon.svg",
+    "96": "icon.svg"
+  }
 }

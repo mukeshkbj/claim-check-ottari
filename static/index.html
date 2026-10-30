@@ -49,6 +49,9 @@ select{font:inherit;padding:6px;border-radius:6px;border:1px solid var(--line);b
 .tile.idle b::after{content:" ·";}
 .shot{display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap}.shot img{max-height:70px;border-radius:6px;border:1px solid var(--line)}
 .linkbtn{background:none;border:0;color:var(--accent);padding:0;font-weight:600;cursor:pointer}
+.second{font-size:13px;margin-top:6px;color:var(--quiet)}.second.dis{color:var(--warn);font-weight:600}
+.reply{white-space:pre-wrap;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;margin-top:8px;font-size:15px}
+.cardimg{width:100%;max-width:420px;border:1px solid var(--line);border-radius:8px;margin-top:8px;display:block}
 .cached{font-size:12px;color:var(--warn);margin-top:4px}.transcript{white-space:pre-wrap;font-size:14px;color:var(--quiet)}
 .hist{font-size:13px;margin-top:10px}.hist a{color:var(--accent);text-decoration:none}.hist div{padding:3px 0;border-top:1px solid var(--line)}
 .banner{background:color-mix(in srgb,var(--accent) 10%,transparent);border:1px solid var(--accent);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:14px}
@@ -68,7 +71,7 @@ select{font:inherit;padding:6px;border-radius:6px;border:1px solid var(--line);b
   <section>
     <div id="banner"></div>
     <div class="card">
-      <textarea id="post" placeholder="Paste a post, e.g. &quot;Crime in London is up 300% since 2019 and the Eiffel Tower is in Berlin.&quot;"></textarea>
+      <textarea id="post" placeholder="Paste a post or a link to an article, e.g. &quot;Crime in London is up 300% since 2019 and the Eiffel Tower is in Berlin.&quot;"></textarea>
       <div class="row">
         <button id="go">Check it</button>
         <button class="ghost" id="sample">Try a sample</button>
@@ -113,7 +116,7 @@ const TILES = [
   ["search","Web search"],["mcp","MCP tools"],["guard","Guardrails"],
   ["peruser","Per-user budget"],["budget","Budgets & spend"],["code","Code execution"]];
 let F;
-function resetF(){ F = {tier:null, session:null, reader:false, readerModel:null, memoryRan:false, memoryHits:0, models:new Set(), roles:new Set(), policy:false, fell:null, searches:0, mcpAttached:false,
+function resetF(){ F = {tier:null, session:null, reader:false, readerModel:null, memoryRan:false, memoryHits:0, page:null, judges:0, agreed:0, models:new Set(), roles:new Set(), policy:false, fell:null, searches:0, mcpAttached:false,
   mcpCalls:[], guards:[], blocked:false, user:null, overBudget:false, numbersTried:false, numbersOk:false, spend:0}; renderF(); }
 // Friendly model names: drop the provider path and Bedrock's region/vendor prefix and version suffix
 const short = m => String(m || "").split("/").pop().replace(/^(us|eu|apac)\.[a-z]+\./, "").replace(/-v\d+:\d+$/, "").replace(/^[a-z]+:/, "");
@@ -136,6 +139,8 @@ function renderF(){
   const x = [
     ["Otari sessions", F.session ? "on" : "", F.session ? `one session per check: ${F.session.slice(0, 22)}…` : "waiting"],
     ["Screenshot reading", F.reader ? "on" : "", F.reader ? `read by ${short(F.readerModel)}` : "add a screenshot"],
+    ["Link reading (web fetch)", F.page ? "on" : "", F.page ? `read ${F.page}` : "paste a link"],
+    ["Second-opinion judge", F.judges ? (F.agreed === F.judges ? "on" : "warn") : "", F.judges ? `agreed on ${F.agreed} of ${F.judges}` : "waiting"],
     ["Embeddings memory", F.memoryHits ? "on" : F.memoryRan ? "idle" : "", F.memoryHits ? `${F.memoryHits} claim(s) reused` : F.memoryRan ? "checked memory · nothing reused" : "waiting"]];
   $("#feat2").innerHTML = x.map(([label, st, d]) => `<div class="tile ${st}"><b>${label}</b>${esc(d)}</div>`).join("");
 }
@@ -177,12 +182,37 @@ function renderHistory(){
   const h = getHistory(); $("#hist").innerHTML = h.length ? `<div class="kind" style="border:0">Your recent checks</div>` + h.slice(0, 6).map(x =>
     `<div><a href="/r/${esc(x.id)}">${esc(x.text.slice(0, 80))}${x.text.length > 80 ? "…" : ""}</a> <span class="kind">${esc(x.summary)}</span></div>`).join("") : "";
 }
-function showShare(id){
+function secondLine(o){
+  if (!o) return "";
+  return o.agree
+    ? `<div class="second">✓ Second opinion from ${esc(short(o.model))} agrees: ${esc(o.verdict)}</div>`
+    : `<div class="second dis">⚠ The two judges disagree. ${esc(short(o.model))} says <b>${esc(o.verdict)}</b>: ${esc(o.explanation)}</div>`;
+}
+function showShare(id, fromShared){
   const link = `${location.origin}/r/${id}`;
   $("#sharebox").innerHTML = `<div class="card claim"><b>Share this report</b> <span class="kind">anyone with the link sees these verdicts and sources</span>
     <div class="row"><input id="sharelink" value="${esc(link)}" readonly style="flex:1;min-width:0;font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)">
-    <button class="ghost" id="copylink">Copy link</button></div></div>`;
+    <button class="ghost" id="copylink">Copy link</button></div>
+    <img class="cardimg" src="/r/${esc(id)}/card.png" alt="Preview card shown when this link is shared" onerror="this.remove()">
+    <div class="row" style="margin-top:10px"><button class="ghost" id="replybtn">✍ Draft a calm reply</button>
+      <span class="kind">a short, friendly reply with sources you could post under the original</span></div>
+    <div id="replyout"></div></div>`;
   $("#copylink").onclick = () => { navigator.clipboard?.writeText(link); $("#copylink").textContent = "Copied ✓"; };
+  $("#replybtn").onclick = async () => {
+    const b = $("#replybtn"); b.disabled = true; b.innerHTML = '<span class="spin"></span>Drafting…';
+    try {
+      const res = await fetch("/api/reply", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({report_id: id})});
+      const j = await res.json();
+      if (!res.ok) throw new Error(typeof j.detail === "string" ? j.detail : "Error " + res.status);
+      if (j.step && !fromShared){ addStep(j.step); featStep(j.step); }
+      $("#replyout").innerHTML = `<div class="reply" id="replytext">${esc(j.reply)}</div>
+        <div class="row" style="margin-top:6px"><button class="ghost" id="copyreply">Copy reply</button>
+        <span class="kind">drafted by ${esc(short(j.step?.upstream_model || j.step?.model_requested))} · read it before you post</span></div>`;
+      $("#copyreply").onclick = () => { navigator.clipboard?.writeText(j.reply); $("#copyreply").textContent = "Copied ✓"; };
+      b.textContent = "✍ Reply drafted";
+    } catch (e) { $("#replyout").innerHTML = `<p class="err">${esc(e.message)}</p>`; b.disabled = false; b.textContent = "✍ Draft a calm reply"; }
+  };
+  if (fromShared) return;
   try { const h = getHistory().filter(x => x.id !== id);
     h.unshift({id, text: lastPost || "(screenshot)", summary: Object.values(lastVerdicts).join(" · "), ts: Date.now()});
     localStorage.setItem("cc-history", JSON.stringify(h.slice(0, 20))); } catch {}
@@ -194,7 +224,7 @@ if (shared){
   fetch(`/api/reports/${shared[1]}`).then(r => r.ok ? r.json() : Promise.reject(r.status)).then(rep => {
     $("#banner").innerHTML = `<div class="banner">Shared Claim Check report · checked ${esc(new Date(rep.created * 1000).toLocaleString())}. <a href="/">Check something else</a></div>`;
     $("#post").value = rep.post; resetF(); $("#claims").innerHTML = ""; $("#trace").innerHTML = ""; cost = 0; steps = 0;
-    rep.events.forEach(handle); $("#status").textContent = "Shared report";
+    rep.events.forEach(handle); $("#status").textContent = "Shared report"; showShare(shared[1], true);
   }).catch(() => { $("#banner").innerHTML = `<div class="banner">This shared report isn't available any more (reports are kept while the demo server runs). <a href="/">Run a new check</a></div>`; });
 }
 $("#sample").onclick = () => { $("#post").value = SAMPLE; };
@@ -238,6 +268,11 @@ function handle(ev){
     case "session": F.session = ev.id; renderF(); break;
     case "transcript": $("#claims").insertAdjacentHTML("beforeend", `<div class="card claim"><div class="kind">Read from the screenshot</div><div class="transcript">${esc(ev.text || "(no text found)")}</div></div>`); break;
     case "report": showShare(ev.id); break;
+    case "page": { let host = ""; try { host = new URL(ev.url).hostname; } catch {}
+      F.page = host || "page"; renderF();
+      $("#claims").insertAdjacentHTML("beforeend", `<div class="card claim"><div class="kind">Read from the link with Otari web fetch</div>
+        <b>${/^https?:\/\//i.test(ev.url) ? `<a href="${esc(ev.url)}" target="_blank" rel="noopener noreferrer">${esc(ev.title || ev.url)}</a>` : esc(ev.title)}</b>
+        <div class="transcript">${esc(ev.excerpt)}${ev.excerpt && ev.excerpt.length >= 700 ? "…" : ""}</div></div>`); break; }
     case "evidence": card.querySelector(".ev").innerHTML = (ev.research.evidence || []).map(e =>
       `<div class="src ${esc(e.stance)}">${/^https?:\/\//i.test(e.url || "") ? `<a href="${esc(e.url)}" target="_blank" rel="noopener noreferrer">${esc(e.title || e.url)}</a>` : esc(e.title || e.url || "source")}
        ${e.publisher ? " · " + esc(e.publisher) : ""}<br><q>${esc(e.quote)}</q></div>`).join("") || `<div class="src">${esc(ev.research.summary)}</div>`; break;
@@ -249,7 +284,9 @@ function handle(ev){
       lastVerdicts[ev.claim_id] = r.verdict;
       card.querySelector(".body").innerHTML = `<span class="verdict v-${v}">${esc(r.verdict)}</span><span class="kind">${esc(r.confidence)} confidence</span>
         ${ev.cached ? `<div class="cached">♻ Already checked ${esc(ev.cached.age_hours)} h ago, matched “${esc(ev.cached.matched)}” (similarity ${esc(ev.cached.similarity)}). Verdict reused, no new searches.</div>` : ""}
-        <p class="expl">${esc(r.explanation)}</p>${r.what_is_true ? `<p class="true">What's true: ${esc(r.what_is_true)}</p>` : ""}`; break; }
+        <p class="expl">${esc(r.explanation)}</p>${r.what_is_true ? `<p class="true">What's true: ${esc(r.what_is_true)}</p>` : ""}
+        ${secondLine(r.second_opinion)}`;
+      if (r.second_opinion){ F.judges++; if (r.second_opinion.agree) F.agreed++; renderF(); } break; }
     case "error": (card ? card.querySelector(".body") : $("#claims")).insertAdjacentHTML("beforeend", `<p class="err">${esc(ev.message)}</p>`); break;
     case "blocked": F.blocked = true; renderF(); $("#claims").insertAdjacentHTML("beforeend", `<div class="card claim blocked"><b>Blocked by guardrail</b><p class="expl">This post was stopped before reaching any model. ${esc(ev.message)}</p></div>`); $("#status").textContent = "Blocked"; break;
     case "budget": F.overBudget = true; renderF(); (card ? card.querySelector(".body") : $("#claims")).insertAdjacentHTML("beforeend", `<div class="card claim blocked"><b>Budget reached</b><p class="expl">${esc(ev.message)}</p></div>`); $("#status").textContent = "Budget reached"; break;
