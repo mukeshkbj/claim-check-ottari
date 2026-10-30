@@ -31,6 +31,7 @@ STATIC = Path(__file__).parent / "static"
 class CheckRequest(BaseModel):
     post: str = Field(min_length=10, max_length=4000)
     volunteer: str | None = None
+    simulate_outage: bool = False
 
 
 class GuardRequest(BaseModel):
@@ -46,18 +47,18 @@ def index():
 
 @app.get("/api/config")
 def app_config():
-    return {"models": config.MODELS, "volunteers": config.VOLUNTEERS if config.SERVICE_KEY else [],
+    return {"models": config.MODELS, "volunteers": config.VOLUNTEERS,
             "guardrails": bool(config.GUARD_URL), "mcp": bool(config.MCP_URL)}
 
 
 @app.post("/api/check")
 async def check(req: CheckRequest, request: Request):
     key, user = None, None
-    if config.SERVICE_KEY and req.volunteer in config.VOLUNTEERS:
-        key, user = config.SERVICE_KEY, req.volunteer   # per-volunteer budget via Otari end users
+    if req.volunteer in config.VOLUNTEER_KEYS:
+        key, user = config.VOLUNTEER_KEYS[req.volunteer], req.volunteer  # their own key + budget
 
     async def events():
-        async for ev in run(req.post, api_key=key, user=user):
+        async for ev in run(req.post, api_key=key, user=user, simulate_outage=req.simulate_outage):
             if await request.is_disconnected():
                 break
             yield f"data: {json.dumps(ev)}\n\n"

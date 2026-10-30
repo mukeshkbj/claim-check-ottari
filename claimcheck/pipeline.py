@@ -42,14 +42,15 @@ async def _check_claim(client: Otari, claim: dict, q: asyncio.Queue) -> None:
         await q.put({"type": "error", "claim_id": cid, "message": f"{type(e).__name__}: {e}"})
 
 
-async def run(post: str, api_key: str | None = None, user: str | None = None) -> AsyncIterator[dict]:
+async def run(post: str, api_key: str | None = None, user: str | None = None,
+              simulate_outage: bool = False) -> AsyncIterator[dict]:
     client = Otari(api_key=api_key, user=user)
     if user:
         yield {"type": "user", "user": user}
     try:
         yield {"type": "status", "message": "Pulling out the claims"}
         try:
-            claims, step = await agents.extract(client, post)
+            claims, step = await agents.extract(client, post, simulate_outage)
         except OtariError as e:
             if e.code == "guardrail_violation" or (e.status == 403 and "guardrail" in e.detail.lower()):
                 yield {"type": "blocked", "message": e.detail}

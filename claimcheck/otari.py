@@ -69,8 +69,6 @@ class Otari:
             body["tools"] = tools
         if json_mode:
             body["response_format"] = {"type": "json_object"}
-        if self.user:
-            body["user"] = self.user
         if guardrails:
             body["guardrails"] = guardrails
         if mcp_servers:

@@ -53,6 +53,7 @@ select{font:inherit;padding:6px;border-radius:6px;border:1px solid var(--line);b
       <div class="row">
         <button id="go">Check it</button>
         <button class="ghost" id="sample">Try a sample</button>
+        <label title="Sends a request the primary provider rejects, so Otari's routing policy falls back"><input type="checkbox" id="outage"> Simulate provider failure</label>
         <label id="vwrap" hidden>Checking as <select id="volunteer"></select></label>
         <span id="status"></span>
       </div>
@@ -125,7 +126,7 @@ async function check(){
   const post = $("#post").value.trim(); if (post.length < 10) return;
   $("#go").disabled = true; $("#claims").innerHTML = ""; $("#trace").innerHTML = ""; $("#total").textContent = ""; cost = 0; steps = 0;
   try {
-    const res = await fetch("/api/check", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({post, volunteer: $("#vwrap").hidden ? null : $("#volunteer").value})});
+    const res = await fetch("/api/check", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({post, volunteer: $("#vwrap").hidden ? null : $("#volunteer").value, simulate_outage: $("#outage").checked})});
     if (!res.ok) { $("#status").textContent = "Error " + res.status; return; }
     const reader = res.body.getReader(), dec = new TextDecoder(); let buf = "";
     for (;;){ const {value, done} = await reader.read(); if (done) break;
