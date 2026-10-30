@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Claim Check",
+  "version": "0.1.0",
+  "description": "Right-click any claim on the web and fact-check it with open-weight AI agents running on Otari.",
+  "browser_specific_settings": { "gecko": { "id": "claim-check@mukeshkbj.github.io", "strict_min_version": "115.0" } },
+  "permissions": ["contextMenus"],
+  "background": { "scripts": ["background.js"] },
+  "action": { "default_title": "Open Claim Check", "default_icon": "icon.svg" },
+  "icons": { "48": "icon.svg", "96": "icon.svg" }
+}

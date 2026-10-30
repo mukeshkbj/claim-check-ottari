@@ -14,6 +14,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from claimcheck import config, guard
+from claimcheck.mcp_log import MCPRecorder
 from claimcheck.mcp_tools import mcp
 from claimcheck.pipeline import run
 
@@ -27,7 +28,7 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="Claim Check", lifespan=lifespan)
-app.mount("/mcp", mcp.streamable_http_app())
+app.mount("/mcp", MCPRecorder(mcp.streamable_http_app()))
 STATIC = Path(__file__).parent / "static"
 
 

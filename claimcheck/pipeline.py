@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 import asyncio
+import uuid
 from typing import AsyncIterator
 
-from . import agents
+from . import agents, mcp_log
 from .otari import Otari, OtariError
 
 
@@ -12,8 +13,9 @@ def _step_event(step, claim_id=None):
     return {"type": "step", "claim_id": claim_id, "step": step.as_dict()} if step else None
 
 
-async def _check_claim(client: Otari, claim: dict, q: asyncio.Queue) -> None:
+async def _check_claim(client: Otari, claim: dict, q: asyncio.Queue, run_id: str = "") -> None:
     cid = claim["id"]
+    rid = f"{run_id}-{cid}"
     try:
         if not claim.get("checkable", True):
             await q.put({"type": "verdict", "claim_id": cid, "result": {
@@ -21,7 +23,8 @@ async def _check_claim(client: Otari, claim: dict, q: asyncio.Queue) -> None:
                 "explanation": "This is an opinion or prediction, not a checkable fact."}})
             return
         await q.put({"type": "status", "claim_id": cid, "message": "Searching for sources"})
-        research, step = await agents.investigate(client, claim)
+        research, step = await agents.investigate(client, claim, rid)
+        step.mcp_calls = mcp_log.pop(rid)  # MCP tools Otari actually called for this claim
         await q.put(_step_event(step, cid))
         await q.put({"type": "evidence", "claim_id": cid, "research": research})
         if claim.get("kind") == "numeric" and research.get("evidence"):
@@ -63,7 +66,8 @@ async def run(post: str, api_key: str | None = None, user: str | None = None,
         yield _step_event(step)
         yield {"type": "claims", "claims": claims}
         q: asyncio.Queue = asyncio.Queue()
-        tasks = [asyncio.create_task(_check_claim(client, c, q)) for c in claims]
+        run_id = uuid.uuid4().hex[:12]
+        tasks = [asyncio.create_task(_check_claim(client, c, q, run_id)) for c in claims]
         done = asyncio.gather(*tasks)
         while not (done.done() and q.empty()):
             try:

@@ -36,6 +36,7 @@ class Step:
     otari_fallback: bool = False
     guardrails: list = field(default_factory=list)
     mcp: list[str] = field(default_factory=list)
+    mcp_calls: list[dict] = field(default_factory=list)
     user: str | None = None
 
     @property

@@ -65,10 +65,11 @@ def _guardrails() -> list[dict] | None:
             {"profile": "privacy", "mode": "block", "url": config.GUARD_URL, "on_unavailable": "monitor"}]
 
 
-def _mcp() -> list[dict] | None:
+def _mcp(rid: str | None = None) -> list[dict] | None:
     if not config.MCP_URL:
         return None
-    return [{"name": "claimcheck-archive", "url": config.MCP_URL,
+    url = config.MCP_URL if not rid else f"{config.MCP_URL}{'&' if '?' in config.MCP_URL else '?'}rid={rid}"
+    return [{"name": "claimcheck-archive", "url": url,
              "purpose_hint": "Use wayback_snapshot to see what a cited page originally said; use "
                              "wikipedia_summary and wikidata_facts for background facts (places, dates, populations).",
              "allowed_tools": ["wayback_snapshot", "wikipedia_summary", "wikidata_facts"]}]
@@ -101,7 +102,7 @@ async def extract(client: Otari, post: str, simulate_outage: bool = False) -> tu
     return out, step
 
 
-async def investigate(client: Otari, claim: dict) -> tuple[dict, Step]:
+async def investigate(client: Otari, claim: dict, rid: str | None = None) -> tuple[dict, Step]:
     tools = [{"type": "otari_web_search", "max_uses": config.SEARCHES_PER_CLAIM}]
     if config.USE_WEB_FETCH:  # fetching full pages doubled latency and cost in benchmarks; search returns page extracts
         tools.append({"type": "otari_web_fetch"})
@@ -109,7 +110,7 @@ async def investigate(client: Otari, claim: dict) -> tuple[dict, Step]:
                 {"role": "user", "content": f"CLAIM: {claim['text']}\nSuggested search: {claim['search_query']}"}]
     try:
         content, step = await client.chat("investigator", config.MODELS["investigator"], messages,
-                                          tools=tools, max_tokens=1500, mcp_servers=_mcp())
+                                          tools=tools, max_tokens=1500, mcp_servers=_mcp(rid))
     except OtariError as e:
         if e.status in (402, 403):  # tools not enabled -> research without the web, flagged
             step = Step(role="investigator", model_requested=config.MODELS["investigator"], error=e.detail)
@@ -120,7 +121,7 @@ async def investigate(client: Otari, claim: dict) -> tuple[dict, Step]:
         messages.append({"role": "user", "content": "You did not search. Call the web search tool now and base "
                                                     "every evidence item only on retrieved pages. Return the JSON."})
         content, step2 = await client.chat("investigator", config.MODELS["investigator"], messages,
-                                           tools=tools, max_tokens=1500, mcp_servers=_mcp())
+                                           tools=tools, max_tokens=1500, mcp_servers=_mcp(rid))
         step2.prompt_tokens += step.prompt_tokens
         step2.completion_tokens += step.completion_tokens
         step2.seconds = round(step2.seconds + step.seconds, 2)
