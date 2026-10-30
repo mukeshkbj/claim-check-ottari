@@ -17,6 +17,13 @@ Note friction as it happens - this becomes the required feedback video + written
 | 2026-10-30 | Guardrails on hosted | `guardrails: [{profile: "prompt-injection"}]` returns 502 "no guardrails service is configured"; every catalogue guardrail needs a third-party vendor key. Worked around it by hosting my own open-weight guardrail service (Llama Guard 4 + gpt-oss-safeguard-20b) and passing its `url`. The /validate contract made that easy. | Worked well (contract) / Missing (a built-in open-weight guardrail on hosted) |
 | 2026-10-30 | Per-user budgets | Sending `user` with a normal workspace key returns 403 "'user' field does not match the authenticated API key's user"; end users need a service key. Docs for creating one on hosted are thin. | Friction (docs) |
 
+| 2026-10-30 | Code execution after reporting #2719 | Re-tested the same evening: `otari_code_execution` now runs on hosted EU (computed (1648-412)/412*100 = 300 correctly). Fast turnaround. | Worked well (support) |
+| 2026-10-30 | Screenshots via Otari Files | Upload works (`POST /files` returns an id), but an image referenced by `file_id` reaches the model as "[Unprocessable document attachment omitted]" for Gemma 3 27B, Qwen2.5-VL and Qwen3-VL. Inline `image_url` data URLs work for Gemma 3 27B and Qwen3-VL (not Qwen2.5-VL). So I send screenshots inline. | Friction - Files + images on hosted |
+| 2026-10-30 | Rerank | `POST /rerank` returns 400 "Provider doesn't support rerank." for every embedding model in the workspace catalogue; no rerank-capable model is offered on hosted. | Missing |
+| 2026-10-30 | Smart router (knn) | Creating a Smart router policy is possible in the dashboard, but teaching it needs `POST /api/v1/routing/preferences/rank`, which a workspace key can't call ("Invalid master key"). So a hosted user's smart router never learns and always serves its default. Same for `/routing/status` and `/organizations/me/aliases`. | Missing - tenant-level access to routing preferences |
+| 2026-10-30 | Sessions | `Otari-Conversation-Id` groups every call of one check into a session with no other changes - easy. | Worked well |
+| 2026-10-30 | Embeddings | `POST /embeddings` with `qwen3-embedding-0.6b` just worked and is cheap. | Worked well |
+
 ## Issues / PRs opened on mozilla-ai/otari
 | # | Type | Title | Link |
 | --- | --- | --- | --- |

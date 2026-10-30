@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-from claimcheck import config, guard
+from claimcheck import config, guard, reports
 from claimcheck.mcp_log import MCPRecorder
 from claimcheck.mcp_tools import mcp
 from claimcheck.pipeline import run
@@ -33,7 +33,8 @@ STATIC = Path(__file__).parent / "static"
 
 
 class CheckRequest(BaseModel):
-    post: str = Field(min_length=10, max_length=4000)
+    post: str = Field(default="", max_length=4000)
+    image: str | None = Field(default=None, max_length=config.MAX_IMAGE_CHARS)  # data:image/...;base64 screenshot
     volunteer: str | None = None
     simulate_outage: bool = False
 
@@ -49,6 +50,19 @@ def index():
     return FileResponse(STATIC / "index.html")
 
 
+@app.get("/r/{report_id}")
+def shared_report(report_id: str):
+    return FileResponse(STATIC / "index.html")  # the page replays the saved report
+
+
+@app.get("/api/reports/{report_id}")
+def get_report(report_id: str):
+    rep = reports.load(report_id)
+    if not rep:
+        raise HTTPException(status_code=404, detail="Report not found (reports are kept while this server runs).")
+    return rep
+
+
 @app.get("/api/config")
 def app_config():
     return {"models": config.MODELS, "volunteers": config.VOLUNTEERS,
@@ -57,12 +71,16 @@ def app_config():
 
 @app.post("/api/check")
 async def check(req: CheckRequest, request: Request):
+    if len(req.post.strip()) < 10 and not req.image:
+        raise HTTPException(status_code=422, detail="Paste a post (10+ characters) or add a screenshot.")
+    if req.image and not req.image.startswith(("data:image/png;base64,", "data:image/jpeg;base64,", "data:image/webp;base64,")):
+        raise HTTPException(status_code=422, detail="Screenshot must be a PNG, JPEG or WebP image.")
     key, user = None, None
     if req.volunteer in config.VOLUNTEER_KEYS:
         key, user = config.VOLUNTEER_KEYS[req.volunteer], req.volunteer  # their own key + budget
 
     async def events():
-        async for ev in run(req.post, api_key=key, user=user, simulate_outage=req.simulate_outage):
+        async for ev in run(req.post, api_key=key, user=user, simulate_outage=req.simulate_outage, image=req.image):
             if await request.is_disconnected():
                 break
             yield f"data: {json.dumps(ev)}\n\n"

@@ -51,11 +51,38 @@ class Step:
 
 
 class Otari:
-    def __init__(self, api_key: str | None = None, base_url: str | None = None, user: str | None = None):
+    def __init__(self, api_key: str | None = None, base_url: str | None = None, user: str | None = None,
+                 session: str | None = None):
         self.api_key = api_key or config.API_KEY
         self.base_url = (base_url or config.BASE_URL).rstrip("/")
         self.user = user
-        self._http = httpx.AsyncClient(timeout=180)
+        self.session = session
+        # One Otari session per check: every call carries the same Otari-Conversation-Id, so the whole
+        # check shows up as a single session (turns, steps, tools, cost) in Otari's Sessions view.
+        headers = {"User-Agent": "claim-check/0.3"}
+        if session:
+            headers["Otari-Conversation-Id"] = session
+        self._http = httpx.AsyncClient(timeout=180, headers=headers)
+
+    async def embed(self, texts: list[str], model: str) -> tuple[list[list[float]], "Step"]:
+        step = Step(role="memory", model_requested=model, user=self.user)
+        t0 = time.perf_counter()
+        r = await self._http.post(f"{self.base_url}/embeddings", json={"model": model, "input": texts},
+                                  headers={"Authorization": f"Bearer {self.api_key}"})
+        step.seconds = round(time.perf_counter() - t0, 2)
+        if r.status_code >= 400:
+            step.error = f"{r.status_code} {r.text[:200]}"
+            raise OtariError(r.status_code, r.text[:300])
+        data = r.json()
+        usage = data.get("usage") or {}
+        step.prompt_tokens = usage.get("prompt_tokens", 0) or usage.get("total_tokens", 0) or 0
+        try:
+            step.cost_usd = round(float(usage.get("cost_usd")), 6) if usage.get("cost_usd") is not None else None
+        except (TypeError, ValueError):
+            step.cost_usd = None
+        step.model_served = data.get("model", model)
+        vecs = [d["embedding"] for d in sorted(data.get("data", []), key=lambda d: d.get("index", 0))]
+        return vecs, step
 
     async def close(self) -> None:
         await self._http.aclose()

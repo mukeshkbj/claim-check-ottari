@@ -14,6 +14,8 @@ MODELS = {
     "judge": os.getenv("MODEL_JUDGE", "openai/gpt-oss-120b"),
     "guard_privacy": os.getenv("MODEL_GUARD_PRIVACY", "meta/llama-guard-4-12b"),
     "guard_injection": os.getenv("MODEL_GUARD_INJECTION", "openai/gpt-oss-safeguard-20b"),
+    "reader": os.getenv("MODEL_READER", "google/gemma-3-27b-it"),        # reads screenshots of posts
+    "embedder": os.getenv("MODEL_EMBEDDER", "alibaba/qwen3-embedding-0.6b"),  # 'already checked' memory
 }
 
 # Public URL of this app once deployed (Render). Enables Otari -> our MCP server and guardrail service.
@@ -32,3 +34,8 @@ VOLUNTEERS = sorted(VOLUNTEER_KEYS)
 MAX_CLAIMS = int(os.getenv("MAX_CLAIMS", "4"))
 SEARCHES_PER_CLAIM = int(os.getenv("SEARCHES_PER_CLAIM", "2"))
 USE_WEB_FETCH = os.getenv("USE_WEB_FETCH", "0") == "1"
+
+DATA_DIR = os.getenv("DATA_DIR", "data")
+MEMORY_MIN_SIMILARITY = float(os.getenv("MEMORY_MIN_SIMILARITY", "0.93"))
+MEMORY_MIN_OVERLAP = float(os.getenv("MEMORY_MIN_OVERLAP", "0.8"))
+MAX_IMAGE_CHARS = 8_000_000  # ~6 MB image as a data URL

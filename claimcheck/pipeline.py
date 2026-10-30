@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import asyncio
+import time
 import uuid
 from typing import AsyncIterator
 
-from . import agents, mcp_log
+from . import agents, config, mcp_log, reports
+from .memory import MEMORY
 from .otari import Otari, OtariError
 
 
@@ -13,7 +15,13 @@ def _step_event(step, claim_id=None):
     return {"type": "step", "claim_id": claim_id, "step": step.as_dict()} if step else None
 
 
-async def _check_claim(client: Otari, claim: dict, q: asyncio.Queue, run_id: str = "") -> None:
+def _budget_or_error(e: OtariError, claim_id=None) -> dict:
+    kind = "budget" if (e.status in (402, 429) and "pricing" not in e.detail.lower()) or "budget" in e.detail.lower() \
+        else "error"
+    return {"type": kind, "claim_id": claim_id, "status": e.status, "code": e.code, "message": e.detail}
+
+
+async def _check_claim(client: Otari, claim: dict, q: asyncio.Queue, run_id: str, emb: list[float] | None) -> None:
     cid = claim["id"]
     rid = f"{run_id}-{cid}"
     try:
@@ -21,6 +29,13 @@ async def _check_claim(client: Otari, claim: dict, q: asyncio.Queue, run_id: str
             await q.put({"type": "verdict", "claim_id": cid, "result": {
                 "verdict": "Opinion", "confidence": "n/a",
                 "explanation": "This is an opinion or prediction, not a checkable fact."}})
+            return
+        hit = MEMORY.find(claim["text"], emb) if emb else None
+        if hit:  # same claim checked recently: reuse it, and say exactly what matched
+            age_h = round((time.time() - hit["ts"]) / 3600, 1)
+            await q.put({"type": "evidence", "claim_id": cid, "research": hit["research"], "cached": True})
+            await q.put({"type": "verdict", "claim_id": cid, "result": hit["verdict"], "cached": {
+                "matched": hit["text"], "similarity": hit["similarity"], "age_hours": age_h}})
             return
         await q.put({"type": "status", "claim_id": cid, "message": "Searching for sources"})
         research, step = await agents.investigate(client, claim, rid)
@@ -38,36 +53,69 @@ async def _check_claim(client: Otari, claim: dict, q: asyncio.Queue, run_id: str
         verdict, jstep = await agents.judge(client, claim, research, numbers)
         await q.put(_step_event(jstep, cid))
         await q.put({"type": "verdict", "claim_id": cid, "result": verdict})
+        if emb:
+            MEMORY.add(claim["text"], emb, verdict, research)
     except OtariError as e:
-        kind = "budget" if (e.status in (402, 429) or "budget" in e.detail.lower()) else "error"
-        await q.put({"type": kind, "claim_id": cid, "status": e.status, "code": e.code, "message": e.detail})
+        await q.put(_budget_or_error(e, cid))
     except Exception as e:  # keep other claims running
         await q.put({"type": "error", "claim_id": cid, "message": f"{type(e).__name__}: {e}"})
 
 
 async def run(post: str, api_key: str | None = None, user: str | None = None,
-              simulate_outage: bool = False) -> AsyncIterator[dict]:
-    client = Otari(api_key=api_key, user=user)
-    if user:
-        yield {"type": "user", "user": user}
+              simulate_outage: bool = False, image: str | None = None) -> AsyncIterator[dict]:
+    run_id = uuid.uuid4().hex[:16]
+    session = f"claimcheck-{run_id}"
+    client = Otari(api_key=api_key, user=user, session=session)
+    events: list[dict] = []
+
+    def emit(ev):
+        if ev:
+            events.append(ev)
+        return ev
+
     try:
+        yield emit({"type": "session", "id": session})
+        if user:
+            yield emit({"type": "user", "user": user})
+        if image:
+            yield {"type": "status", "message": "Reading the screenshot (Gemma 3 27B)"}
+            try:
+                text, step = await agents.read_image(client, image)
+            except OtariError as e:
+                yield emit(_budget_or_error(e))
+                return
+            yield emit(_step_event(step))
+            yield emit({"type": "transcript", "text": text})
+            post = "\n".join(p for p in (post.strip(), text) if p)
+            if not post:
+                yield emit({"type": "error", "message": "No post text found in the screenshot."})
+                return
         yield {"type": "status", "message": "Running safety checks (Llama Guard 4, gpt-oss-safeguard) and pulling out the claims"
-               if agents.config.GUARD_URL else "Pulling out the claims"}
+               if config.GUARD_URL else "Pulling out the claims"}
         try:
             claims, step = await agents.extract(client, post, simulate_outage)
         except OtariError as e:
             if e.code == "guardrail_violation" or (e.status == 403 and "guardrail" in e.detail.lower()):
-                yield {"type": "blocked", "message": e.detail}
-            elif e.status in (402, 429) or "budget" in e.detail.lower():
-                yield {"type": "budget", "status": e.status, "message": e.detail}
+                yield emit({"type": "blocked", "message": e.detail})
             else:
-                yield {"type": "error", "status": e.status, "code": e.code, "message": e.detail}
+                yield emit(_budget_or_error(e))
             return
-        yield _step_event(step)
-        yield {"type": "claims", "claims": claims}
+        yield emit(_step_event(step))
+        yield emit({"type": "claims", "claims": claims})
+
+        # 'Already checked' memory: one embeddings call for every checkable claim
+        embs: dict[str, list[float]] = {}
+        checkable = [c for c in claims if c.get("checkable", True)]
+        if checkable:
+            try:
+                vecs, estep = await client.embed([c["text"] for c in checkable], config.MODELS["embedder"])
+                embs = {c["id"]: v for c, v in zip(checkable, vecs)}
+                yield emit(_step_event(estep))
+            except OtariError:
+                pass  # memory is optional
+
         q: asyncio.Queue = asyncio.Queue()
-        run_id = uuid.uuid4().hex[:12]
-        tasks = [asyncio.create_task(_check_claim(client, c, q, run_id)) for c in claims]
+        tasks = [asyncio.create_task(_check_claim(client, c, q, run_id, embs.get(c["id"]))) for c in claims]
         done = asyncio.gather(*tasks)
         while not (done.done() and q.empty()):
             try:
@@ -75,7 +123,9 @@ async def run(post: str, api_key: str | None = None, user: str | None = None,
             except asyncio.TimeoutError:
                 continue
             if ev:
-                yield ev
-        yield {"type": "done"}
+                yield emit(ev)
+        yield emit({"type": "done"})
+        reports.save(run_id, post, events)
+        yield {"type": "report", "id": run_id}
     finally:
         await client.close()

@@ -7,6 +7,16 @@ Built for the Mozilla Otari Hackathon - Devs Wilding Online (DoraHacks), branch 
 
 **Live demo:** https://claim-check-tr4f.onrender.com (free tier - first load can take ~50 s to wake up)
 
+## What it can do
+- **Paste text or a screenshot.** Screenshots are read by open-weight **Gemma 3 27B** through Otari (paste with Ctrl+V or upload).
+- **Any language.** Claims stay in the post's language and the verdict is explained in it; searches run in English and the local language.
+- **"Already checked" memory.** Otari embeddings (`qwen3-embedding-0.6b`) spot a claim checked in the last 7 days and reuse its verdict
+  in ~3 s instead of ~17 s. A match also needs near-identical words and the same numbers, so "...is in Paris" never reuses "...is in Berlin";
+  the UI always shows which earlier claim matched.
+- **Shareable reports** at `/r/<id>` and a "recent checks" list in your browser.
+- **One Otari session per check** (`Otari-Conversation-Id`), so each check reads as a single session in Otari's Sessions view.
+- **Accuracy:** 19/19 on a 20-claim benchmark (1 abstained) - see [BENCHMARK.md](BENCHMARK.md).
+
 ## Firefox extension
 Select any claim on a web page, right-click, and choose **Check this claim with Claim Check**: the app opens with your selection and runs the check.
 Load it from `about:debugging` > *This Firefox* > **Load Temporary Add-on** and pick `extension/firefox/manifest.json` (or `extension/claim-check-firefox.xpi`).
@@ -53,4 +63,7 @@ Each claim is checked in parallel; every call's model, tools, tokens and cost st
 | Guardrails | Otari's `guardrails` hook (block mode) pointed at Claim Check's own guardrail service, backed by Llama Guard 4 (privacy/doxxing) and gpt-oss-safeguard-20b (prompt injection) | `claimcheck/guard.py`, `app.py` |
 | Per-user budgets | Each volunteer has their own Otari key with its own monthly budget; `budget_exceeded` shown in the UI | `app.py`, Otari dashboard |
 | Budgets | Workspace key budget caps total spend | Otari dashboard |
-| Code execution | `otari_code_execution` re-runs the numbers in numeric claims (blocked on hosted Otari: `pricing_required`, see FEEDBACK.md) | `claimcheck/agents.py` |
+| Code execution | `otari_code_execution` re-runs the numbers in numeric claims (was blocked on hosted Otari by `pricing_required`, reported as mozilla-ai/otari#2719; working since 30 Oct) | `claimcheck/agents.py` |
+| Sessions / traces | `Otari-Conversation-Id` per check, `User-Agent: claim-check/0.3` | `claimcheck/otari.py` |
+| Embeddings | 'Already checked' memory with `qwen3-embedding-0.6b` | `claimcheck/memory.py` |
+| Vision input | Screenshots read by Gemma 3 27B (inline image) | `claimcheck/agents.py` |
