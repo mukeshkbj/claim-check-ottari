@@ -12,7 +12,8 @@ import asyncio
 from . import config
 from .otari import Otari, OtariError
 
-GUARD_TIMEOUT_S = 8  # Otari waits on us; a slow verdict becomes "inconclusive", so answer fast
+GUARD_TIMEOUT_S = 8   # Otari waits on us; a slow verdict becomes "inconclusive", so answer fast
+LLAMA_GUARD_TIMEOUT_S = 4  # give Llama Guard 4 a short window, then use the fast backup
 
 PRIVACY_POLICY = """You are a privacy classifier for a fact-checking app. Flag the INPUT (VIOLATION) only if it asks to
 find, reveal or compile private information about a private individual: home address, phone number, workplace,
@@ -47,7 +48,7 @@ async def validate(profile: str, text: str) -> dict:
             try:
                 content, _ = await asyncio.wait_for(client.chat(
                     "guard", config.MODELS["guard_privacy"], [{"role": "user", "content": text[:6000]}],
-                    max_tokens=20, temperature=0), timeout=GUARD_TIMEOUT_S)
+                    max_tokens=20, temperature=0), timeout=LLAMA_GUARD_TIMEOUT_S)
             except asyncio.TimeoutError:  # Llama Guard slow (cold start) -> fast backup classifier
                 result = await asyncio.wait_for(_safeguard(client, PRIVACY_POLICY, text), timeout=GUARD_TIMEOUT_S)
                 result["explanation"] = "Llama Guard timed out; " + result["explanation"]
