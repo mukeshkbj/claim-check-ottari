@@ -9,6 +9,7 @@ import collections
 import contextlib
 import hmac
 import json
+import os
 import time
 from pathlib import Path
 
@@ -36,16 +37,17 @@ STATIC = Path(__file__).parent / "static"
 
 
 # ---- Abuse limits: this is a public demo spending real money on every check
-RATE_PER_HOUR = int(__import__("os").getenv("RATE_PER_HOUR", "12"))
-MAX_CONCURRENT = int(__import__("os").getenv("MAX_CONCURRENT_CHECKS", "3"))
+RATE_PER_HOUR = int(os.getenv("RATE_PER_HOUR", "12"))
+MAX_CONCURRENT = int(os.getenv("MAX_CONCURRENT_CHECKS", "3"))
 MAX_REQUEST_BYTES = config.MAX_IMAGE_CHARS + 20_000
 _hits: dict[str, collections.deque] = collections.defaultdict(collections.deque)
 _running = asyncio.Semaphore(MAX_CONCURRENT)
 
 
 def _client_ip(request: Request) -> str:
-    fwd = request.headers.get("x-forwarded-for", "")
-    return fwd.split(",")[0].strip() if fwd else (request.client.host if request.client else "?")
+    # The client controls the start of X-Forwarded-For; Render's proxy appends the real address last.
+    fwd = [p.strip() for p in request.headers.get("x-forwarded-for", "").split(",") if p.strip()]
+    return fwd[-1] if fwd else (request.client.host if request.client else "?")
 
 
 def _rate_limited(ip: str) -> bool:
@@ -56,7 +58,7 @@ def _rate_limited(ip: str) -> bool:
         return True
     q.append(now)
     if len(_hits) > 5000:  # forget idle clients
-        for k in [k for k, v in _hits.items() if not v]:
+        for k in [k for k, v in _hits.items() if not v or now - v[-1] > 3600]:
             _hits.pop(k, None)
     return False
 
@@ -123,10 +125,10 @@ async def check(req: CheckRequest, request: Request):
         if req.volunteer not in config.VOLUNTEER_KEYS:
             raise HTTPException(status_code=422, detail="Unknown volunteer.")
         key, user = config.VOLUNTEER_KEYS[req.volunteer], req.volunteer  # their own key + budget
+    if _running.locked():  # check before counting, so a busy server doesn't use up the visitor's quota
+        raise HTTPException(status_code=429, detail="The demo is busy with other checks right now. Try again in a minute.")
     if _rate_limited(_client_ip(request)):
         raise HTTPException(status_code=429, detail=f"Rate limit: {RATE_PER_HOUR} checks per hour per visitor on this demo.")
-    if _running.locked():
-        raise HTTPException(status_code=429, detail="The demo is busy with other checks right now. Try again in a minute.")
 
     async def events():
         async with _running:
@@ -157,6 +159,12 @@ async def guard_validate(token: str, req: GuardRequest):
     _check_token(token)
     result = await guard.validate(req.profile, req.input_text)
     return {"profile": req.profile, "result": result}
+
+
+@app.get("/api/_fwd")  # TEMP: check how Render fills X-Forwarded-For
+def _fwd(request: Request):
+    return {k: request.headers.get(k) for k in ("x-forwarded-for", "true-client-ip", "cf-connecting-ip", "x-real-ip")} | {
+        "peer": request.client.host if request.client else None, "used": _client_ip(request)}
 
 
 @app.get("/healthz")

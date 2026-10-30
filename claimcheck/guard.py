@@ -8,6 +8,7 @@ Both checks run on open-weight safety models through Otari:
 from __future__ import annotations
 
 import asyncio
+import re
 
 from . import config
 from .otari import Otari, OtariError
@@ -35,8 +36,9 @@ async def _safeguard(client: Otari, policy: str, text: str) -> dict:
                                    [{"role": "system", "content": policy},
                                     {"role": "user", "content": f"INPUT:\n{text[:6000]}"}],
                                    max_tokens=200, temperature=0)
-    flagged = content.strip().upper().startswith("VIOLATION") or (
-        "VIOLATION" in content.upper() and "SAFE" not in content.upper())
+    words = re.findall(r"[A-Z]+", content.upper())
+    # "UNSAFE" contains "SAFE", so compare whole words, and treat the first word as the answer
+    flagged = bool(words) and (words[0] in ("VIOLATION", "UNSAFE") or ("VIOLATION" in words and "SAFE" not in words))
     return {"valid": not flagged, "score": 1.0 if flagged else 0.0,
             "explanation": f"gpt-oss-safeguard: {content.strip()[:200]}"}
 

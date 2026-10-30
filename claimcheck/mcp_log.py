@@ -63,7 +63,7 @@ class MCPRecorder:
             for item in data if isinstance(data, list) else [data]:
                 if isinstance(item, dict) and item.get("method") == "tools/call":
                     p = item.get("params") or {}
-                    record(rid[:64], str(p.get("name")), p.get("arguments"))
+                    record(rid, str(p.get("name")), p.get("arguments"))
         except (ValueError, TypeError):
             pass
         replayed = False

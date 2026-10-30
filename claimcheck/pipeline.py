@@ -107,6 +107,9 @@ async def run(post: str, api_key: str | None = None, user: str | None = None,
             return
         yield emit(_step_event(step))
         yield emit({"type": "claims", "claims": claims})
+        if not claims:
+            yield emit({"type": "error", "message": "I couldn't find a claim to check in this post. Try pasting the exact sentence."})
+            return
 
         # 'Already checked' memory: one embeddings call for every checkable claim
         embs: dict[str, list[float]] = {}
@@ -116,8 +119,8 @@ async def run(post: str, api_key: str | None = None, user: str | None = None,
                 vecs, estep = await client.embed([c["text"] for c in checkable], config.MODELS["embedder"])
                 embs = {c["id"]: v for c, v in zip(checkable, vecs)}
                 yield emit(_step_event(estep))
-            except OtariError:
-                pass  # memory is optional
+            except Exception:  # API error or unexpected payload: memory is optional
+                embs = {}
 
         q: asyncio.Queue = asyncio.Queue()
         tasks[:] = [asyncio.create_task(_check_claim(client, c, q, run_id, embs.get(c["id"]))) for c in claims]

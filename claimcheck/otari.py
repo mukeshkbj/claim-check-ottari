@@ -133,7 +133,8 @@ class Otari:
         h = r.headers
         step.provider = h.get("otari-provider", "")
         step.upstream_model = h.get("otari-model", "")
-        step.attempts = int(h.get("otari-attempt-count", "1") or 1)
+        ac = str(h.get("otari-attempt-count") or "1")
+        step.attempts = int(ac) if ac.isdigit() else 1
         step.otari_fallback = h.get("otari-fallback", "false").lower() == "true"
         if h.get("otari-guardrails"):
             try:

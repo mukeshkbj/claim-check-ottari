@@ -8,7 +8,6 @@ import re
 from . import config
 from .otari import Otari, OtariError, Step, parse_json
 
-TODAY = dt.date.today().isoformat()
 
 EXTRACTOR_PROMPT = """You split social-media posts into separate, checkable factual claims.
 Return ONLY JSON: {"language": "the post's language in English, e.g. French", "claims": [{"id": "c1", "text": "...", "kind": "numeric|factual|quote|opinion",
@@ -60,7 +59,7 @@ def _has_quantity(claim: dict) -> bool:
     """True if the claim states a quantity worth recomputing (not just a year)."""
     for f in [*claim.get("figures", []), *re.findall(r"[\d][\d,.]*\s*%?", claim["text"])]:
         f = str(f).strip().rstrip(".,;:!?)")
-        if "%" in f or re.search(r"\d", f) and not re.fullmatch(r"(1[5-9]|20)\d\d", f):
+        if "%" in f or re.search(r"\d", f) and not re.fullmatch(r"(1[0-9]|20)\d\d", f):
             return True
     return False
 
@@ -111,8 +110,11 @@ async def extract(client: Otari, post: str, simulate_outage: bool = False) -> tu
     claims = data.get("claims", data) if isinstance(data, dict) else data
     out = []
     for i, c in enumerate(claims[: config.MAX_CLAIMS]):
-        if not isinstance(c, dict) or not c.get("text"):
+        if not isinstance(c, dict) or not str(c.get("text") or "").strip():
             continue
+        c["text"] = str(c["text"]).strip()
+        if not isinstance(c.get("figures"), list):
+            c["figures"] = []
         c["id"] = f"c{len(out) + 1}"  # our own ids: model-chosen ids end up in DOM selectors
         c["kind"] = str(c.get("kind") or "factual").lower()
         if c["kind"] not in ("numeric", "factual", "quote", "opinion"):
