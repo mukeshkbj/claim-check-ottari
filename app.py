@@ -45,9 +45,13 @@ _running = asyncio.Semaphore(MAX_CONCURRENT)
 
 
 def _client_ip(request: Request) -> str:
-    # The client controls the start of X-Forwarded-For; Render's proxy appends the real address last.
-    fwd = [p.strip() for p in request.headers.get("x-forwarded-for", "").split(",") if p.strip()]
-    return fwd[-1] if fwd else (request.client.host if request.client else "?")
+    # Measured on Render: X-Forwarded-For is "<anything the client sent>, <client>, <Cloudflare>, <Render LB>",
+    # so neither end of it identifies a visitor. Cloudflare sets CF-Connecting-IP itself and rejects requests
+    # that try to supply it, so that is the visitor. Locally (no Cloudflare) fall back to the socket peer.
+    for h in ("cf-connecting-ip", "true-client-ip"):
+        if request.headers.get(h):
+            return request.headers[h].strip()
+    return request.client.host if request.client else "?"
 
 
 def _rate_limited(ip: str) -> bool:
@@ -159,12 +163,6 @@ async def guard_validate(token: str, req: GuardRequest):
     _check_token(token)
     result = await guard.validate(req.profile, req.input_text)
     return {"profile": req.profile, "result": result}
-
-
-@app.get("/api/_fwd")  # TEMP: check how Render fills X-Forwarded-For
-def _fwd(request: Request):
-    return {k: request.headers.get(k) for k in ("x-forwarded-for", "true-client-ip", "cf-connecting-ip", "x-real-ip")} | {
-        "peer": request.client.host if request.client else None, "used": _client_ip(request)}
 
 
 @app.get("/healthz")
