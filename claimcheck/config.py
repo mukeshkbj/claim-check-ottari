@@ -11,7 +11,7 @@ MODELS = {
     "extractor": os.getenv("MODEL_EXTRACTOR", "cc-extractor"),        # Otari policy: Llama 3.1 8B -> gpt-oss-20b
     "investigator": os.getenv("MODEL_INVESTIGATOR", "cc-investigator"),  # Otari policy: Qwen3-Next 80B -> DeepSeek V4 Flash
     "numbers": os.getenv("MODEL_NUMBERS", "cc-investigator"),
-    "judge": os.getenv("MODEL_JUDGE", "openai/gpt-oss-120b"),
+    "judge": os.getenv("MODEL_JUDGE", "cc-judge"),  # Otari budget tier-down: gpt-oss-120b, gpt-oss-20b once 80% of budget used
     "guard_privacy": os.getenv("MODEL_GUARD_PRIVACY", "meta/llama-guard-4-12b"),
     "guard_injection": os.getenv("MODEL_GUARD_INJECTION", "openai/gpt-oss-safeguard-20b"),
     "reader": os.getenv("MODEL_READER", "google/gemma-3-27b-it"),        # reads screenshots of posts

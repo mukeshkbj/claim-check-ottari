@@ -111,7 +111,7 @@ const TILES = [
   ["search","Web search"],["mcp","MCP tools"],["guard","Guardrails"],
   ["peruser","Per-user budget"],["budget","Budgets & spend"],["code","Code execution"]];
 let F;
-function resetF(){ F = {session:null, reader:false, readerModel:null, memoryRan:false, memoryHits:0, models:new Set(), roles:new Set(), policy:false, fell:null, searches:0, mcpAttached:false,
+function resetF(){ F = {tier:null, session:null, reader:false, readerModel:null, memoryRan:false, memoryHits:0, models:new Set(), roles:new Set(), policy:false, fell:null, searches:0, mcpAttached:false,
   mcpCalls:[], guards:[], blocked:false, user:null, overBudget:false, numbersTried:false, numbersOk:false, spend:0}; renderF(); }
 // Friendly model names: drop the provider path and Bedrock's region/vendor prefix and version suffix
 const short = m => String(m || "").split("/").pop().replace(/^(us|eu|apac)\.[a-z]+\./, "").replace(/-v\d+:\d+$/, "").replace(/^[a-z]+:/, "");
@@ -120,7 +120,7 @@ function renderF(){
   const t = {};
   t.models = F.models.size ? tile("models", F.models.size >= 2 ? "on" : "idle", `${F.models.size}: ${[...F.models].map(short).join(", ")}`) : tile("models","","waiting");
   t.roles = F.roles.size ? tile("roles", F.roles.size >= 2 ? "on" : "idle", [...F.roles].join(" · ")) : tile("roles","","waiting");
-  t.routing = F.fell ? tile("routing","warn",`fell back to ${short(F.fell)}`) : F.policy ? tile("routing","on","via Otari policies (cc-*)") : tile("routing","","waiting");
+  t.routing = F.fell ? tile("routing","warn",`fell back to ${short(F.fell)}`) : F.tier ? tile("routing","warn",`budget tier-down: judge on ${short(F.tier)}`) : F.policy ? tile("routing","on","via Otari policies (cc-*)") : tile("routing","","waiting");
   t.search = F.searches ? tile("search","on",`${F.searches} search/fetch call(s)`) : tile("search","","waiting");
   t.mcp = F.mcpCalls.length ? tile("mcp","on",[...new Set(F.mcpCalls.map(c => c.tool))].join(", ")) : F.mcpAttached ? tile("mcp","idle","attached · model didn't need it") : tile("mcp","","waiting");
   t.guard = F.blocked ? tile("guard","bad","post blocked before any model") : F.guards.length ? tile("guard","on", F.guards.map(g => `${g.profile} ${g.valid ? "✓" : g.valid === false ? "✗" : "?"}`).join(", ")) : tile("guard","","waiting");
@@ -141,6 +141,7 @@ function featStep(s){
   if (!s.error){ F.models.add(s.upstream_model || s.model_served || s.model_requested); F.roles.add(s.role); }
   if (String(s.model_requested).startsWith("cc-")) F.policy = true;
   if (s.fell_back) F.fell = s.upstream_model || s.model_served;
+  if (s.role === "judge" && /gpt-oss-20b/.test(s.upstream_model || "")) F.tier = s.upstream_model;  // cc-judge tiered down
   F.searches += (s.tool_calls || []).filter(c => /web_(search|fetch)/.test(c.type || "")).length;
   if (s.mcp && s.mcp.length) F.mcpAttached = true;
   F.mcpCalls.push(...(s.mcp_calls || []));
