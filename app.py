@@ -4,6 +4,7 @@ Also serves, for the Otari gateway to call once deployed:
   /mcp/                    Claim Check's MCP server (Wayback Machine, Wikipedia, Wikidata)
   /guard/<token>/validate  guardrail service backed by open-weight safety models
 """
+import asyncio
 import contextlib
 import json
 from pathlib import Path
@@ -20,6 +21,8 @@ from claimcheck.pipeline import run
 @contextlib.asynccontextmanager
 async def lifespan(_app: FastAPI):
     async with mcp.session_manager.run():
+        if config.GUARD_URL:
+            asyncio.create_task(guard.warm_up())
         yield
 
 

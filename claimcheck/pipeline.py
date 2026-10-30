@@ -48,7 +48,8 @@ async def run(post: str, api_key: str | None = None, user: str | None = None,
     if user:
         yield {"type": "user", "user": user}
     try:
-        yield {"type": "status", "message": "Pulling out the claims"}
+        yield {"type": "status", "message": "Running safety checks (Llama Guard 4, gpt-oss-safeguard) and pulling out the claims"
+               if agents.config.GUARD_URL else "Pulling out the claims"}
         try:
             claims, step = await agents.extract(client, post, simulate_outage)
         except OtariError as e:
