@@ -41,3 +41,24 @@ def test_card_is_a_1200x630_png():
 def test_compare_flags_disagreement():
     assert agents.compare({"verdict": "False"}, {"verdict": "False"}, "m")["agree"] is True
     assert agents.compare({"verdict": "False"}, {"verdict": "Misleading"}, "m")["agree"] is False
+
+
+def test_reply_uses_only_chosen_links_and_skips_opinions():
+    import asyncio, json
+    seen = {}
+
+    class C:
+        async def chat(self, role, model, messages, **k):
+            seen["payload"] = json.loads(messages[1]["content"])
+            return ("**Vaccines** don't cause autism: https://www.cdc.gov/a. --- Here's a fact check: https://junk.example/x "
+                    "and more info: https://junk.example/y"), None
+
+    rows = [{"text": "Vaccines cause autism", "verdict": "False", "sources": ["https://www.cdc.gov/a", "https://b"]},
+            {"text": "5G spreads COVID", "verdict": "False", "sources": ["https://who.int/5g"]},
+            {"text": "Best government ever", "verdict": "Opinion", "sources": []}]
+    text, _ = asyncio.run(agents.draft_reply(C(), rows, "English"))
+    assert seen["payload"]["links_you_may_use"] == ["https://www.cdc.gov/a", "https://who.int/5g"]
+    assert [c["claim"] for c in seen["payload"]["claims"]] == ["Vaccines cause autism", "5G spreads COVID"]
+    assert "junk.example" not in text and "---" not in text and "**" not in text
+    assert "https://www.cdc.gov/a" in text and not text.rstrip().endswith(":")
+    print(text)
