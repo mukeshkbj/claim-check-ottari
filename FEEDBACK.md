@@ -31,9 +31,13 @@ Note friction as it happens - this becomes the required feedback video + written
 | #2719 | Bug | Hosted Otari.ai: otari_code_execution always returns 402 pricing_required, and workspaces can't set the price | https://github.com/mozilla-ai/otari/issues/2719 |
 | #2721 | Bug | Hosted otari.ai: signing in on the default US region silently creates an empty second account for an EU user | https://github.com/mozilla-ai/otari/issues/2721 |
 | #2722 | Feature | A keyless, open-weight guardrail on hosted otari.ai (Llama Guard 4 / gpt-oss-safeguard via /validate) | https://github.com/mozilla-ai/otari/issues/2722 |
+| #2725 | Bug | Hosted otari.ai: an image uploaded to /files and referenced by file_id reaches the model as 'unprocessable attachment' | https://github.com/mozilla-ai/otari/issues/2725 |
+| #2726 | Feature | Let a workspace key teach and read its own smart-router memory (routing/preferences, routing/status) on hosted otari.ai | https://github.com/mozilla-ai/otari/issues/2726 |
+| #2719 | Comment | Thank-you: code execution confirmed working on hosted after the fix | https://github.com/mozilla-ai/otari/issues/2719#issuecomment-6529196072 |
 | #2691 | Comment | Added code-execution repro to the existing "/api/v1/tools reports web tools as available" bug | https://github.com/mozilla-ai/otari/issues/2691#issuecomment-6526674319 |
 
 Not filed separately (kept for the written feedback):
+- Rerank: `POST /rerank` returns "Provider doesn't support rerank." for every model in the hosted catalogue - a catalogue gap rather than a bug.
 - Llama 3.1 8B on Bedrock rejects `response_format` (JSON mode) and the 400 is passed straight through - belongs to any-llm per CONTRIBUTING.
 - `user` field must match the key's owner; end-user budgets need a service key that personal hosted accounts can't create - docs gap.
 - A key's budget dropdown can attach one key to another key's budget (Bob's key ended up on Alice's budget) - may have been a mis-click; noting as UX friction.
