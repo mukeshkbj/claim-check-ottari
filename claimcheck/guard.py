@@ -13,7 +13,7 @@ from . import config
 from .otari import Otari, OtariError
 
 GUARD_TIMEOUT_S = 8   # Otari waits on us; a slow verdict becomes "inconclusive", so answer fast
-LLAMA_GUARD_TIMEOUT_S = 4  # give Llama Guard 4 a short window, then use the fast backup
+LLAMA_GUARD_TIMEOUT_S = 2.5  # give Llama Guard 4 a short window, then use the fast backup
 
 PRIVACY_POLICY = """You are a privacy classifier for a fact-checking app. Flag the INPUT (VIOLATION) only if it asks to
 find, reveal or compile private information about a private individual: home address, phone number, workplace,
@@ -45,19 +45,24 @@ async def validate(profile: str, text: str) -> dict:
     client = Otari()
     try:
         if profile == "privacy":
-            try:
-                content, _ = await asyncio.wait_for(client.chat(
-                    "guard", config.MODELS["guard_privacy"], [{"role": "user", "content": text[:6000]}],
-                    max_tokens=20, temperature=0), timeout=LLAMA_GUARD_TIMEOUT_S)
-            except asyncio.TimeoutError:  # Llama Guard slow (cold start) -> fast backup classifier
-                result = await asyncio.wait_for(_safeguard(client, PRIVACY_POLICY, text), timeout=GUARD_TIMEOUT_S)
-                result["explanation"] = "Llama Guard timed out; " + result["explanation"]
-                return result
-            first, _, rest = content.strip().partition("\n")
-            cats = {c.strip() for c in rest.replace(",", " ").split() if c.strip().startswith("S")}
-            flagged = first.lower().startswith("unsafe") and bool(cats & PRIVACY_ONLY)
-            return {"valid": not flagged, "score": 1.0 if flagged else 0.0,
-                    "explanation": f"Llama Guard: {content.strip()}"}
+            # Race: Llama Guard 4 is preferred, but answer within ~2.5 s using the fast backup if it is slow.
+            llama = asyncio.create_task(client.chat(
+                "guard", config.MODELS["guard_privacy"], [{"role": "user", "content": text[:6000]}],
+                max_tokens=20, temperature=0))
+            backup = asyncio.create_task(_safeguard(client, PRIVACY_POLICY, text))
+            done, _ = await asyncio.wait({llama}, timeout=LLAMA_GUARD_TIMEOUT_S)
+            if llama in done and not llama.exception():
+                backup.cancel()
+                content, _ = llama.result()
+                first, _, rest = content.strip().partition("\n")
+                cats = {c.strip() for c in rest.replace(",", " ").split() if c.strip().startswith("S")}
+                flagged = first.lower().startswith("unsafe") and bool(cats & PRIVACY_ONLY)
+                return {"valid": not flagged, "score": 1.0 if flagged else 0.0,
+                        "explanation": f"Llama Guard: {content.strip()}"}
+            llama.cancel()
+            result = await asyncio.wait_for(backup, timeout=GUARD_TIMEOUT_S)
+            result["explanation"] = "Llama Guard slow; " + result["explanation"]
+            return result
         if profile == "prompt-injection":
             return await asyncio.wait_for(_safeguard(client, INJECTION_POLICY, text), timeout=GUARD_TIMEOUT_S)
         return {"valid": None, "score": None, "explanation": f"unknown profile {profile}"}
