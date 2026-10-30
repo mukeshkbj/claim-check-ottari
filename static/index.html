@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claim Check</title>
+<style>
+:root{--bg:#faf8f5;--card:#fff;--ink:#1d1b19;--quiet:#6b655e;--line:#e6e1da;--accent:#3a5bd9;
+--good:#2f7d4f;--bad:#b3362c;--warn:#b7791f;--muted:#7a7570;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif}
+@media (prefers-color-scheme:dark){:root{--bg:#161514;--card:#1f1e1c;--ink:#efece8;--quiet:#a39d96;--line:#34312e;--accent:#8aa2ff}}
+*{box-sizing:border-box}main>*{min-width:0}.nums,.err,.expl,.src{overflow-wrap:anywhere}body{margin:0;background:var(--bg);color:var(--ink);line-height:1.5}
+header{max-width:1100px;margin:0 auto;padding:28px 20px 8px}
+h1{margin:0;font-size:26px;letter-spacing:-.01em}h1 span{color:var(--accent)}
+header p{margin:4px 0 0;color:var(--quiet)}
+main{max-width:1100px;margin:0 auto;padding:12px 20px 60px;display:grid;grid-template-columns:1fr 340px;gap:20px}
+@media (max-width:860px){main{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+textarea{width:100%;min-height:120px;border:1px solid var(--line);border-radius:8px;padding:12px;font:inherit;
+background:var(--bg);color:var(--ink);resize:vertical}
+.row{display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 18px;font:inherit;font-weight:600;cursor:pointer}
+button:disabled{opacity:.5;cursor:default}.ghost{background:none;color:var(--accent);border:1px solid var(--line)}
+#status{color:var(--quiet);font-size:14px}
+.claim{margin-top:14px}.claim h3{margin:0 0 6px;font-size:16px;font-weight:600}
+.kind{font-size:12px;color:var(--quiet);text-transform:uppercase;letter-spacing:.05em}
+.verdict{display:inline-block;font-weight:700;font-size:13px;padding:3px 10px;border-radius:999px;border:1.5px solid currentColor;margin-right:8px}
+.v-Supported{color:var(--good)}.v-False{color:var(--bad)}.v-Misleading{color:var(--warn)}
+.v-Unsupported,.v-Cantverify,.v-Opinion,.v-pending{color:var(--muted)}
+.expl{margin:8px 0}.true{color:var(--quiet);font-size:14px}
+.src{font-size:14px;margin:4px 0;padding-left:10px;border-left:3px solid var(--line)}
+.src.supports{border-color:var(--good)}.src.contradicts{border-color:var(--bad)}
+.src a{color:var(--accent);word-break:break-all}.src q{color:var(--quiet)}
+.nums{font-size:14px;background:var(--bg);border-radius:8px;padding:8px 10px;margin-top:8px}
+.nums code{font-size:12px;white-space:pre-wrap;display:block;margin-top:4px;color:var(--quiet)}
+aside h2{font-size:15px;margin:0 0 8px}.step{font-size:13px;border-top:1px solid var(--line);padding:7px 0}
+.step b{text-transform:capitalize}.step .m{color:var(--quiet);word-break:break-all}.fb{color:var(--warn);font-weight:600}
+.err{color:var(--bad)}.tot{font-size:14px;margin-top:8px;font-weight:600}
+.spin{display:inline-block;width:10px;height:10px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:s 1s linear infinite;margin-right:6px}
+@keyframes s{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Claim <span>Check</span></h1>
+  <p>Paste a viral post. A team of open-weight models pulls out each claim, finds sources, re-runs the numbers and gives a cited verdict, all through Otari.</p>
+</header>
+<main>
+  <section>
+    <div class="card">
+      <textarea id="post" placeholder="Paste a post, e.g. &quot;Crime in London is up 300% since 2019 and the Eiffel Tower is in Berlin.&quot;"></textarea>
+      <div class="row">
+        <button id="go">Check it</button>
+        <button class="ghost" id="sample">Try a sample</button>
+        <span id="status"></span>
+      </div>
+    </div>
+    <div id="claims"></div>
+  </section>
+  <aside class="card">
+    <h2>Agent trace</h2>
+    <div id="trace"><div class="step m">Each model and tool call through Otari shows here.</div></div>
+    <div class="tot" id="total"></div>
+  </aside>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const SAMPLE = "BREAKING: UK inflation hit 11.1% in October 2022, the highest in 41 years. The Eiffel Tower is in Berlin. Honestly this government is the worst ever.";
+let cost = 0, steps = 0;
+$("#sample").onclick = () => { $("#post").value = SAMPLE; };
+$("#go").onclick = check;
+
+function claimCard(c){
+  const d = document.createElement("div");
+  d.className = "card claim"; d.id = "claim-" + c.id;
+  d.innerHTML = `<div class="kind">${esc(c.kind)}</div><h3>${esc(c.text)}</h3>
+    <div class="body"><span class="verdict v-pending"><span class="spin"></span>Checking</span></div>
+    <div class="ev"></div><div class="nm"></div>`;
+  $("#claims").appendChild(d);
+}
+function addStep(s){
+  if (steps++ === 0) $("#trace").innerHTML = "";
+  if (s.cost_usd) cost += s.cost_usd;
+  const tools = s.tools.length ? " · " + s.tools.map(t => t.replace("otari_","")).join(", ") : "";
+  const calls = s.tool_calls.length ? ` · ${s.tool_calls.length} tool call(s)` : "";
+  $("#trace").insertAdjacentHTML("beforeend", `<div class="step"><b>${esc(s.role)}</b>
+    ${s.fell_back ? '<span class="fb"> fallback</span>' : ""}<br><span class="m">${esc(s.model_served || s.model_requested)}${esc(tools)}${esc(calls)}</span><br>
+    <span class="m">${s.seconds}s · ${s.prompt_tokens + s.completion_tokens} tokens${s.cost_usd != null ? " · $" + s.cost_usd.toFixed(4) : ""}</span>
+    ${s.error ? `<br><span class="err">${esc(s.error)}</span>` : ""}</div>`);
+  $("#total").textContent = `${steps} calls · $${cost.toFixed(4)} total`;
+}
+function handle(ev){
+  const card = ev.claim_id && $("#claim-" + ev.claim_id);
+  switch (ev.type){
+    case "status": $("#status").innerHTML = '<span class="spin"></span>' + esc(ev.message); if (card) card.querySelector(".body").innerHTML = `<span class="verdict v-pending"><span class="spin"></span>${esc(ev.message)}</span>`; break;
+    case "claims": ev.claims.forEach(claimCard); break;
+    case "step": addStep(ev.step); break;
+    case "evidence": card.querySelector(".ev").innerHTML = (ev.research.evidence || []).map(e =>
+      `<div class="src ${esc(e.stance)}"><a href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.title || e.url)}</a>
+       ${e.publisher ? " · " + esc(e.publisher) : ""}<br><q>${esc(e.quote)}</q></div>`).join("") || `<div class="src">${esc(ev.research.summary)}</div>`; break;
+    case "numbers": { const n = ev.numbers; card.querySelector(".nm").innerHTML = n.applicable
+      ? `<div class="nums"><b>Numbers check:</b> ${esc(n.computation)} = <b>${esc(n.result)}</b> (claimed ${esc(n.claimed)}) ${n.consistent ? "✓ consistent" : "✗ doesn't match"}<code>${esc(n.code)}</code></div>`
+      : `<div class="nums">${esc(n.note)}</div>`; break; }
+    case "verdict": { const r = ev.result, v = (r.verdict || "").replace(/[^A-Za-z]/g,"");
+      card.querySelector(".body").innerHTML = `<span class="verdict v-${v}">${esc(r.verdict)}</span><span class="kind">${esc(r.confidence)} confidence</span>
+        <p class="expl">${esc(r.explanation)}</p>${r.what_is_true ? `<p class="true">What's true: ${esc(r.what_is_true)}</p>` : ""}`; break; }
+    case "error": (card ? card.querySelector(".body") : $("#claims")).insertAdjacentHTML("beforeend", `<p class="err">${esc(ev.message)}</p>`); break;
+    case "done": $("#status").textContent = "Done"; break;
+  }
+}
+async function check(){
+  const post = $("#post").value.trim(); if (post.length < 10) return;
+  $("#go").disabled = true; $("#claims").innerHTML = ""; $("#trace").innerHTML = ""; $("#total").textContent = ""; cost = 0; steps = 0;
+  try {
+    const res = await fetch("/api/check", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({post})});
+    if (!res.ok) { $("#status").textContent = "Error " + res.status; return; }
+    const reader = res.body.getReader(), dec = new TextDecoder(); let buf = "";
+    for (;;){ const {value, done} = await reader.read(); if (done) break;
+      buf += dec.decode(value, {stream:true}); let i;
+      while ((i = buf.indexOf("\n\n")) >= 0){ const line = buf.slice(0, i); buf = buf.slice(i + 2);
+        if (line.startsWith("data: ")) handle(JSON.parse(line.slice(6))); } }
+  } catch (e) { $("#status").textContent = "Error: " + e.message; }
+  finally { $("#go").disabled = false; }
+}
+</script>
+</body>
+</html>
