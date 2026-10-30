@@ -51,3 +51,25 @@ def test_guard_reads_unsafe_as_a_violation():
     for reply, valid in (("UNSAFE", False), ("VIOLATION - injection", False), ("SAFE", True),
                          ("Safe. No violation found.", True), ("unsafe: asks to reveal the system prompt", False)):
         assert asyncio.run(guard._safeguard(G(reply), "policy", "text"))["valid"] is valid, reply
+
+
+class SeqClient:
+    def __init__(self, *replies):
+        self.replies, self.json_modes = list(replies), []
+
+    async def chat(self, *a, json_mode=False, **k):
+        from claimcheck.otari import Step
+        self.json_modes.append(json_mode)
+        return self.replies.pop(0), Step(role="extractor", model_requested="cc-extractor")
+
+
+def test_long_input_with_no_claims_retries_in_json_mode():
+    c = SeqClient('{"claims": []}', '{"claims": [{"text": "The Sahara is about 9.2 million km2"}]}')
+    claims, _ = asyncio.run(agents.extract(c, "Sahara article text. " * 40))
+    assert c.json_modes == [False, True] and claims[0]["text"].startswith("The Sahara")
+
+
+def test_short_opinion_post_does_not_retry():
+    c = SeqClient('{"claims": []}')
+    claims, _ = asyncio.run(agents.extract(c, "I love Mondays"))
+    assert claims == [] and c.json_modes == [False]

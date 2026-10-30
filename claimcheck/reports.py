@@ -40,8 +40,10 @@ def summarize(rep: dict) -> list[dict]:
                 rows[c["id"]] = {"id": c["id"], "text": c.get("text", ""), "language": c.get("language", "English"),
                                  "verdict": None, "sources": []}
         elif t == "evidence" and cid in rows:
-            rows[cid]["sources"] = [e["url"] for e in ev.get("research", {}).get("evidence", [])
-                                    if str(e.get("url", "")).startswith(("http://", "https://"))]
+            ev_list = [e for e in ev.get("research", {}).get("evidence", [])
+                       if str(e.get("url", "")).startswith(("http://", "https://"))]
+            ev_list.sort(key=lambda e: not e.get("verified_url"))  # sources Otari actually retrieved first
+            rows[cid]["sources"] = [e["url"] for e in ev_list]
         elif t == "verdict" and cid in rows:
             r = ev.get("result", {})
             rows[cid].update(verdict=r.get("verdict"), confidence=r.get("confidence"),
