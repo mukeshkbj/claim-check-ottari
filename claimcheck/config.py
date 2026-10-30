@@ -17,7 +17,8 @@ MODELS = {
 }
 
 # Public URL of this app once deployed (Render). Enables Otari -> our MCP server and guardrail service.
-PUBLIC_URL = os.getenv("PUBLIC_URL", "").rstrip("/")
+# Render sets RENDER_EXTERNAL_URL automatically; PUBLIC_URL overrides it elsewhere.
+PUBLIC_URL = (os.getenv("RENDER_EXTERNAL_URL") or os.getenv("PUBLIC_URL", "")).rstrip("/")
 GUARD_TOKEN = os.getenv("GUARD_TOKEN", "")
 MCP_URL = os.getenv("MCP_URL", f"{PUBLIC_URL}/mcp/" if PUBLIC_URL else "")
 GUARD_URL = os.getenv("GUARD_URL", f"{PUBLIC_URL}/guard/{GUARD_TOKEN}" if PUBLIC_URL and GUARD_TOKEN else "")
