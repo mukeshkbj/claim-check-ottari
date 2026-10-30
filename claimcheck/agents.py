@@ -102,8 +102,9 @@ async def extract(client: Otari, post: str, simulate_outage: bool = False) -> tu
 
 
 async def investigate(client: Otari, claim: dict) -> tuple[dict, Step]:
-    tools = [{"type": "otari_web_search", "max_uses": config.SEARCHES_PER_CLAIM},
-             {"type": "otari_web_fetch"}]
+    tools = [{"type": "otari_web_search", "max_uses": config.SEARCHES_PER_CLAIM}]
+    if config.USE_WEB_FETCH:  # fetching full pages doubled latency and cost in benchmarks; search returns page extracts
+        tools.append({"type": "otari_web_fetch"})
     messages = [{"role": "system", "content": INVESTIGATOR_PROMPT.replace("TODAY", TODAY)},
                 {"role": "user", "content": f"CLAIM: {claim['text']}\nSuggested search: {claim['search_query']}"}]
     try:
@@ -177,7 +178,7 @@ async def judge(client: Otari, claim: dict, research: dict, numbers: dict | None
     content, step = await client.chat(
         "judge", config.MODELS["judge"],
         [{"role": "system", "content": JUDGE_PROMPT}, {"role": "user", "content": json.dumps(payload)}],
-        json_mode=True, max_tokens=900, temperature=0)
+        json_mode=True, max_tokens=900, temperature=0, reasoning_effort="low")  # low effort: 11s -> 5s, same verdicts
     try:
         v = parse_json(content)
     except ValueError:

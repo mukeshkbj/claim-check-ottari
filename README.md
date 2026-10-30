@@ -26,8 +26,8 @@ uvicorn app:app --port 8000    # web app at http://127.0.0.1:8000
 | Role | Open-weight model | Otari features |
 | --- | --- | --- |
 | Extractor | `meta/llama-3.1-8b-instruct` | - |
-| Investigator | `alibaba/qwen3-235b-a22b-instruct-2507` | `otari_web_search`, `otari_web_fetch` |
-| Numbers check | `alibaba/qwen3-235b-a22b-instruct-2507` | `otari_code_execution` |
+| Investigator | `cc-investigator` policy: Qwen3-Next 80B (backup DeepSeek V4 Flash) | `otari_web_search` + Claim Check MCP |
+| Numbers check | `cc-investigator` policy | `otari_code_execution` |
 | Judge | `openai/gpt-oss-120b` | - |
 
 Each claim is checked in parallel; every call's model, tools, tokens and cost stream to the trace panel.
@@ -35,9 +35,9 @@ Each claim is checked in parallel; every call's model, tools, tokens and cost st
 ## Otari features used
 | Rubric feature | How Claim Check uses it | Where |
 | --- | --- | --- |
-| Open-weight models (x6) | Llama 3.1 8B, Qwen3 235B, gpt-oss-120b, Llama Guard 4, gpt-oss-safeguard-20b (+ gpt-oss-20b / DeepSeek V4 Flash as backups) | `claimcheck/config.py` |
+| Open-weight models (x6) | Llama 3.1 8B, Qwen3-Next 80B, gpt-oss-120b, Llama Guard 4, gpt-oss-safeguard-20b (+ gpt-oss-20b / DeepSeek V4 Flash as backups) | `claimcheck/config.py` |
 | Multiple models, distinct roles | Extractor, Investigator, Judge, privacy guard, injection guard | `claimcheck/agents.py`, `claimcheck/guard.py` |
-| Routing & fallbacks | Otari policies `cc-extractor` (Llama 3.1 8B -> gpt-oss-20b) and `cc-investigator` (Qwen3 235B -> DeepSeek V4 Flash); "Simulate provider failure" switch triggers a real failover; trace reads `Otari-Fallback`, `Otari-Model`, `Otari-Attempt-Count` | `claimcheck/otari.py` |
+| Routing & fallbacks | Otari policies `cc-extractor` (Llama 3.1 8B -> gpt-oss-20b) and `cc-investigator` (Qwen3-Next 80B -> DeepSeek V4 Flash); "Simulate provider failure" switch triggers a real failover; trace reads `Otari-Fallback`, `Otari-Model`, `Otari-Attempt-Count` | `claimcheck/otari.py` |
 | Web search / fetch | `otari_web_search` + `otari_web_fetch` for every claim; evidence must come from retrieved pages | `claimcheck/agents.py` |
 | MCP | Claim Check's own MCP server (Wayback Machine, Wikipedia, Wikidata) passed to Otari via `mcp_servers` | `claimcheck/mcp_tools.py` |
 | Guardrails | Otari's `guardrails` hook (block mode) pointed at Claim Check's own guardrail service, backed by Llama Guard 4 (privacy/doxxing) and gpt-oss-safeguard-20b (prompt injection) | `claimcheck/guard.py`, `app.py` |

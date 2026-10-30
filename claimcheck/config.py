@@ -9,7 +9,7 @@ API_KEY = os.getenv("OTARI_API_KEY", "")
 # One open-weight model per role (override any of them in .env)
 MODELS = {
     "extractor": os.getenv("MODEL_EXTRACTOR", "cc-extractor"),        # Otari policy: Llama 3.1 8B -> gpt-oss-20b
-    "investigator": os.getenv("MODEL_INVESTIGATOR", "cc-investigator"),  # Otari policy: Qwen3 235B -> DeepSeek V4 Flash
+    "investigator": os.getenv("MODEL_INVESTIGATOR", "cc-investigator"),  # Otari policy: Qwen3-Next 80B -> DeepSeek V4 Flash
     "numbers": os.getenv("MODEL_NUMBERS", "cc-investigator"),
     "judge": os.getenv("MODEL_JUDGE", "openai/gpt-oss-120b"),
     "guard_privacy": os.getenv("MODEL_GUARD_PRIVACY", "meta/llama-guard-4-12b"),
@@ -31,3 +31,4 @@ VOLUNTEERS = sorted(VOLUNTEER_KEYS)
 
 MAX_CLAIMS = int(os.getenv("MAX_CLAIMS", "4"))
 SEARCHES_PER_CLAIM = int(os.getenv("SEARCHES_PER_CLAIM", "2"))
+USE_WEB_FETCH = os.getenv("USE_WEB_FETCH", "0") == "1"
