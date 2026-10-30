@@ -78,7 +78,7 @@ Write in LANGUAGE. Plain text only (no markdown, no brackets around links). Repl
 def _has_quantity(claim: dict) -> bool:
     """True if the claim states a quantity worth recomputing (not just a year)."""
     # Numbers glued to letters are names, not quantities: 5G, COVID-19, G7, MP3, Web3
-    in_text = re.findall(r"(?<![A-Za-z-])\d[\d,.]*\s*%?(?![A-Za-z])", claim["text"])
+    in_text = re.findall(r"(?<![A-Za-z0-9.,-])\d[\d,.]*\s*%?(?![A-Za-z])", claim["text"])
     for f in [*claim.get("figures", []), *in_text]:
         f = str(f).strip().rstrip(".,;:!?)")
         if re.fullmatch(r"\d+[A-Za-z]|[A-Za-z]+-?\d+", f):
