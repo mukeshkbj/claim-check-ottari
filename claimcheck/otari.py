@@ -90,7 +90,7 @@ class Otari:
     async def chat(self, role: str, model: str, messages: list[dict], *, tools: list[dict] | None = None,
                    json_mode: bool = False, max_tokens: int = 1200, temperature: float = 0.2,
                    guardrails: list[dict] | None = None, mcp_servers: list[dict] | None = None,
-                   reasoning_effort: str | None = None) -> tuple[str, Step]:
+                   reasoning_effort: str | None = None, max_tool_iterations: int | None = None) -> tuple[str, Step]:
         body: dict[str, Any] = {"model": model, "messages": messages,
                                 "max_tokens": max_tokens, "temperature": temperature}
         if tools:
@@ -103,6 +103,8 @@ class Otari:
             body["mcp_servers"] = mcp_servers
         if reasoning_effort:
             body["reasoning_effort"] = reasoning_effort
+        if max_tool_iterations:
+            body["max_tool_iterations"] = max_tool_iterations  # Otari's gateway tool loop (default 10)
         step = Step(role=role, model_requested=model, tools=[t.get("type", "") for t in tools or []],
                     mcp=[m["name"] for m in mcp_servers or []], user=self.user)
         t0 = time.perf_counter()
@@ -120,7 +122,8 @@ class Otari:
                 return await self.chat(role, model, messages, tools=tools, json_mode=False,
                                        max_tokens=max_tokens, temperature=temperature,
                                        guardrails=guardrails, mcp_servers=mcp_servers,
-                                       reasoning_effort=reasoning_effort)
+                                       reasoning_effort=reasoning_effort,
+                                       max_tool_iterations=max_tool_iterations)
             if isinstance(detail, dict):
                 code = code or detail.get("code")
                 detail = detail.get("message") or detail

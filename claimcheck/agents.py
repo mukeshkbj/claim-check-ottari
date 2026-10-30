@@ -79,7 +79,8 @@ def _mcp(rid: str | None = None) -> list[dict] | None:
     url = config.MCP_URL if not rid else f"{config.MCP_URL}{'&' if '?' in config.MCP_URL else '?'}rid={rid}"
     return [{"name": "claimcheck-archive", "url": url,
              "purpose_hint": "Use wayback_snapshot to see what a cited page originally said; use "
-                             "wikipedia_summary and wikidata_facts for background facts (places, dates, populations).",
+                             "wikipedia_summary and wikidata_facts for background facts (places, dates, populations). "
+                             "Call each of these tools at most once per claim.",
              "allowed_tools": ["wayback_snapshot", "wikipedia_summary", "wikidata_facts"]}]
 
 
@@ -132,7 +133,8 @@ async def investigate(client: Otari, claim: dict, rid: str | None = None) -> tup
                 {"role": "user", "content": f"CLAIM: {claim['text']}\nSuggested search: {claim['search_query']}"}]
     try:
         content, step = await client.chat("investigator", config.MODELS["investigator"], messages,
-                                          tools=tools, max_tokens=1500, mcp_servers=_mcp(rid))
+                                          tools=tools, max_tokens=1500, mcp_servers=_mcp(rid),
+                                          max_tool_iterations=4)
     except OtariError as e:
         if e.status in (402, 403):  # tools not enabled -> research without the web, flagged
             step = Step(role="investigator", model_requested=config.MODELS["investigator"], error=e.detail)
@@ -143,7 +145,8 @@ async def investigate(client: Otari, claim: dict, rid: str | None = None) -> tup
         messages.append({"role": "user", "content": "You did not search. Call the web search tool now and base "
                                                     "every evidence item only on retrieved pages. Return the JSON."})
         content, step2 = await client.chat("investigator", config.MODELS["investigator"], messages,
-                                           tools=tools, max_tokens=1500, mcp_servers=_mcp(rid))
+                                           tools=tools, max_tokens=1500, mcp_servers=_mcp(rid),
+                                          max_tool_iterations=4)
         step2.prompt_tokens += step.prompt_tokens
         step2.completion_tokens += step.completion_tokens
         step2.seconds = round(step2.seconds + step.seconds, 2)
