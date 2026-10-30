@@ -29,7 +29,7 @@ from claimcheck.pipeline import run
 async def lifespan(_app: FastAPI):
     async with mcp.session_manager.run():
         if config.GUARD_URL:
-            asyncio.create_task(guard.warm_up())
+            _app.state.warmup = asyncio.create_task(guard.warm_up())  # keep a reference so it is not collected
         yield
 
 

@@ -73,3 +73,16 @@ def test_short_opinion_post_does_not_retry():
     c = SeqClient('{"claims": []}')
     claims, _ = asyncio.run(agents.extract(c, "I love Mondays"))
     assert claims == [] and c.json_modes == [False]
+
+
+def test_guard_network_failure_is_inconclusive(monkeypatch):
+    import httpx
+    from claimcheck import guard
+
+    class Broken:
+        def __init__(self, *a, **k): pass
+        async def chat(self, *a, **k): raise httpx.ConnectError("boom")
+        async def close(self): pass
+    monkeypatch.setattr(guard, "Otari", Broken)
+    r = asyncio.run(guard.validate("prompt-injection", "hello"))
+    assert r["valid"] is None and "ConnectError" in r["explanation"]

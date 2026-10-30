@@ -9,6 +9,7 @@ API_KEY = os.getenv("OTARI_API_KEY", "")
 # One open-weight model per role (override any of them in .env)
 MODELS = {
     "extractor": os.getenv("MODEL_EXTRACTOR", "cc-extractor"),        # Otari policy: Llama 3.1 8B -> gpt-oss-20b
+    "extractor_backup": os.getenv("MODEL_EXTRACTOR_BACKUP", "openai/gpt-oss-20b"),
     "investigator": os.getenv("MODEL_INVESTIGATOR", "cc-investigator"),  # Otari policy: Qwen3-Next 80B -> DeepSeek V4 Flash
     "numbers": os.getenv("MODEL_NUMBERS", "cc-investigator"),
     "judge": os.getenv("MODEL_JUDGE", "cc-judge"),  # Otari budget tier-down: gpt-oss-120b, gpt-oss-20b once 80% of budget used

@@ -23,6 +23,8 @@ Note friction as it happens - this becomes the required feedback video + written
 | 2026-10-30 | Smart router (knn) | Creating a Smart router policy is possible in the dashboard, but teaching it needs `POST /api/v1/routing/preferences/rank`, which a workspace key can't call ("Invalid master key"). So a hosted user's smart router never learns and always serves its default. Same for `/routing/status` and `/organizations/me/aliases`. | Missing - tenant-level access to routing preferences |
 | 2026-10-30 | Sessions | `Otari-Conversation-Id` groups every call of one check into a session with no other changes - easy. | Worked well |
 | 2026-10-30 | Embeddings | `POST /embeddings` with `qwen3-embedding-0.6b` just worked and is cheap. | Worked well |
+| 2026-10-30 | Routing policy as a safety net | Llama 3.1 8B (the cheap extractor) refuses to list claims from anti-vaccine posts ("I can't help you spread misinformation"), which is exactly what a fact-checker needs to read. Retrying in JSON mode makes Bedrock reject the request, so the `cc-extractor` policy hands it to gpt-oss-20b, which extracts the claims. A per-policy "fall back on refusal" option would make this cleaner than abusing JSON mode. | Worked well (fallback) / Idea (refusal-aware routing) |
+| 2026-10-30 | Second opinion across model families | Running Mistral Small 3.2 24B next to gpt-oss-120b as a second judge was one extra call with a different model id; Llama 3.3 70B gave the same verdicts but took 15 s vs 2.5 s, which the Otari trace made easy to see. | Worked well |
 
 ## Issues / PRs opened on mozilla-ai/otari
 | # | Type | Title | Link |

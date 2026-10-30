@@ -11,7 +11,7 @@ import asyncio
 import re
 
 from . import config
-from .otari import Otari, OtariError
+from .otari import Otari
 
 GUARD_TIMEOUT_S = 8   # Otari waits on us; a slow verdict becomes "inconclusive", so answer fast
 LLAMA_GUARD_TIMEOUT_S = 2.5  # give Llama Guard 4 a short window, then use the fast backup
@@ -68,8 +68,9 @@ async def validate(profile: str, text: str) -> dict:
         if profile == "prompt-injection":
             return await asyncio.wait_for(_safeguard(client, INJECTION_POLICY, text), timeout=GUARD_TIMEOUT_S)
         return {"valid": None, "score": None, "explanation": f"unknown profile {profile}"}
-    except (OtariError, asyncio.TimeoutError) as e:
-        return {"valid": None, "score": None, "explanation": f"guard unavailable: {getattr(e, 'detail', 'timeout')}"}
+    except Exception as e:  # Otari error, timeout or network blip: an inconclusive verdict, never an HTTP 500
+        why = getattr(e, "detail", None) or ("timeout" if isinstance(e, asyncio.TimeoutError) else type(e).__name__)
+        return {"valid": None, "score": None, "explanation": f"guard unavailable: {why}"}
     finally:
         await client.close()
 

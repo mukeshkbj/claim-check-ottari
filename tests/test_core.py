@@ -52,3 +52,18 @@ def test_memory_only_keeps_well_sourced_verdicts(tmp_path):
     assert m.items == []
     m.add("Claim C", [1.0], {"verdict": "False"}, two)
     assert len(m.items) == 1
+
+
+def test_memory_ignores_a_file_that_is_not_a_list(tmp_path):
+    p = tmp_path / "m.json"
+    for content in ("{}", "42", '[{"text": "x"}, "junk"]'):
+        p.write_text(content)
+        m = memory.Memory(p)
+        assert m.items == [] and m.find("anything", [1.0]) is None
+
+
+def test_names_with_digits_are_not_quantities():
+    for t in ("5G towers spread COVID", "COVID-19 came from a lab", "The G7 met in Italy", "Web3 is a scam"):
+        assert not agents._has_quantity({"text": t, "figures": []}), t
+    assert not agents._has_quantity({"text": "5G towers spread COVID", "figures": ["5G"]})
+    assert agents._has_quantity({"text": "Crime in London is up 300% since 2019", "figures": ["300%", "2019"]})

@@ -42,7 +42,9 @@ class Memory:
         self.path = path or Path(config.DATA_DIR) / "memory.json"
         self.items: list[dict] = []
         try:
-            self.items = json.loads(self.path.read_text(encoding="utf-8"))
+            parsed = json.loads(self.path.read_text(encoding="utf-8"))
+            self.items = [i for i in parsed if isinstance(i, dict) and {"text", "emb", "ts"} <= i.keys()] \
+                if isinstance(parsed, list) else []
         except (OSError, ValueError):
             self.items = []
 

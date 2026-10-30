@@ -71,7 +71,7 @@ select{font:inherit;padding:6px;border-radius:6px;border:1px solid var(--line);b
   <section>
     <div id="banner"></div>
     <div class="card">
-      <textarea id="post" placeholder="Paste a post or a link to an article, e.g. &quot;Crime in London is up 300% since 2019 and the Eiffel Tower is in Berlin.&quot;"></textarea>
+      <textarea id="post" maxlength="4000" placeholder="Paste a post or a link to an article, e.g. &quot;Crime in London is up 300% since 2019 and the Eiffel Tower is in Berlin.&quot;"></textarea>
       <div class="row">
         <button id="go">Check it</button>
         <button class="ghost" id="sample">Try a sample</button>
@@ -289,7 +289,9 @@ function handle(ev){
       if (r.second_opinion){ F.judges++; if (r.second_opinion.agree) F.agreed++; renderF(); } break; }
     case "error": (card ? card.querySelector(".body") : $("#claims")).insertAdjacentHTML("beforeend", `<p class="err">${esc(ev.message)}</p>`); break;
     case "blocked": F.blocked = true; renderF(); $("#claims").insertAdjacentHTML("beforeend", `<div class="card claim blocked"><b>Blocked by guardrail</b><p class="expl">This post was stopped before reaching any model. ${esc(ev.message)}</p></div>`); $("#status").textContent = "Blocked"; break;
-    case "budget": F.overBudget = true; renderF(); (card ? card.querySelector(".body") : $("#claims")).insertAdjacentHTML("beforeend", `<div class="card claim blocked"><b>Budget reached</b><p class="expl">${esc(ev.message)}</p></div>`); $("#status").textContent = "Budget reached"; break;
+    case "budget": F.overBudget = true; renderF(); (card ? card.querySelector(".body") : $("#claims")).insertAdjacentHTML("beforeend", card
+      ? `<p class="err"><b>Budget reached.</b> ${esc(ev.message)}</p>`
+      : `<div class="card claim blocked"><b>Budget reached</b><p class="expl">${esc(ev.message)}</p></div>`); $("#status").textContent = "Budget reached"; break;
     case "done": $("#status").textContent = "Done"; break;
   }
 }
