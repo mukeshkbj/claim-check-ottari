@@ -18,4 +18,15 @@ Note friction as it happens - this becomes the required feedback video + written
 | 2026-10-30 | Per-user budgets | Sending `user` with a normal workspace key returns 403 "'user' field does not match the authenticated API key's user"; end users need a service key. Docs for creating one on hosted are thin. | Friction (docs) |
 
 ## Issues / PRs opened on mozilla-ai/otari
-- #2719 - Hosted Otari.ai: otari_code_execution always returns 402 pricing_required, and workspaces can't set the price - https://github.com/mozilla-ai/otari/issues/2719
+| # | Type | Title | Link |
+| --- | --- | --- | --- |
+| #2720 | PR (docs) | docs: name the EU host for otari.ai accounts in the EU region | https://github.com/mozilla-ai/otari/pull/2720 |
+| #2719 | Bug | Hosted Otari.ai: otari_code_execution always returns 402 pricing_required, and workspaces can't set the price | https://github.com/mozilla-ai/otari/issues/2719 |
+| #2721 | Bug | Hosted otari.ai: signing in on the default US region silently creates an empty second account for an EU user | https://github.com/mozilla-ai/otari/issues/2721 |
+| #2722 | Feature | A keyless, open-weight guardrail on hosted otari.ai (Llama Guard 4 / gpt-oss-safeguard via /validate) | https://github.com/mozilla-ai/otari/issues/2722 |
+| #2691 | Comment | Added code-execution repro to the existing "/api/v1/tools reports web tools as available" bug | https://github.com/mozilla-ai/otari/issues/2691#issuecomment-6526674319 |
+
+Not filed separately (kept for the written feedback):
+- Llama 3.1 8B on Bedrock rejects `response_format` (JSON mode) and the 400 is passed straight through - belongs to any-llm per CONTRIBUTING.
+- `user` field must match the key's owner; end-user budgets need a service key that personal hosted accounts can't create - docs gap.
+- A key's budget dropdown can attach one key to another key's budget (Bob's key ended up on Alice's budget) - may have been a mis-click; noting as UX friction.
