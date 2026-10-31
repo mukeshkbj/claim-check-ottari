@@ -23,7 +23,8 @@ Built for the Mozilla Otari Hackathon - Devs Wilding Online (DoraHacks), branch 
   the UI always shows which earlier claim matched.
 - **Shareable reports** at `/r/<id>` and a "recent checks" list in your browser.
 - **One Otari session per check** (`Otari-Conversation-Id`), so each check reads as a single session in Otari's Sessions view.
-- **Accuracy:** on a 20-claim benchmark it answered 19 and got all 19 right; it abstained ("Can't verify") on 1 - see [BENCHMARK.md](BENCHMARK.md).
+- **Accuracy:** on a 20-claim benchmark it answered 19 and got all 19 right; it abstained ("Can't verify") on 1.
+  Median 18.6 s and $0.016 per claim, with both judges agreeing on 19 of 20 - see [BENCHMARK.md](BENCHMARK.md).
 
 ## Firefox extension
 Select any claim on a web page (or right-click a link to an article) and choose **Check this claim with Claim Check**:
