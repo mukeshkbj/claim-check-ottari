@@ -76,7 +76,7 @@ select{font:inherit;padding:6px;border-radius:6px;border:1px solid var(--line);b
         <button id="go">Check it</button>
         <button class="ghost" id="sample">Try a sample</button>
         <label title="Sends a request the primary provider rejects, so Otari's routing policy falls back"><input type="checkbox" id="outage"> Simulate provider failure</label>
-        <label id="vwrap" hidden>Checking as <select id="volunteer"></select></label>
+        <label id="vwrap" hidden title="Each volunteer has their own Otari key and monthly budget">Checking as <select id="volunteer"></select></label>
         <span id="status"></span>
       </div>
       <div class="shot">
@@ -107,7 +107,9 @@ const SAMPLE = "BREAKING: UK inflation hit 11.1% in October 2022, the highest in
 let cost = 0, steps = 0;
 fetch("/api/config").then(r => r.json()).then(c => {
   if (c.volunteers.length){ $("#vwrap").hidden = false;
-    $("#volunteer").innerHTML = c.volunteers.map(v => `<option>${esc(v)}</option>`).join(""); }
+    // Default: the demo's own key. Volunteers are opt-in, to show per-user budgets.
+    $("#volunteer").innerHTML = `<option value="">you (demo key)</option>` +
+      c.volunteers.map(v => `<option value="${esc(v)}">${esc(v)} (own budget)</option>`).join(""); }
 }).catch(() => {});
 
 // ---- Live feature panel: every tile is driven by real trace data from Otari responses
@@ -301,7 +303,7 @@ async function check(){
   if (location.pathname !== "/") window.history.replaceState(null, "", "/");
   $("#go").disabled = true; $("#claims").innerHTML = ""; $("#trace").innerHTML = ""; $("#total").textContent = ""; cost = 0; steps = 0; resetF();
   try {
-    const res = await fetch("/api/check", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({post, image: shot, volunteer: $("#vwrap").hidden ? null : $("#volunteer").value, simulate_outage: $("#outage").checked})});
+    const res = await fetch("/api/check", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({post, image: shot, volunteer: $("#vwrap").hidden ? null : ($("#volunteer").value || null), simulate_outage: $("#outage").checked})});
     if (!res.ok) { let m = "Error " + res.status; try { const j = await res.json(); if (j.detail) m = typeof j.detail === "string" ? j.detail : m; } catch (_) {}
       $("#status").textContent = m; return; }
     const reader = res.body.getReader(), dec = new TextDecoder(); let buf = "";
