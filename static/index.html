@@ -133,7 +133,7 @@ function renderF(){
   t.guard = F.blocked ? tile("guard","bad","post blocked before any model") : F.guards.length ? tile("guard","on", F.guards.map(g => `${g.profile} ${g.valid ? "✓" : g.valid === false ? "✗" : "?"}`).join(", ")) : tile("guard","","waiting");
   t.peruser = F.overBudget ? tile("peruser","bad",`${F.user || "key"}: limit reached`) : F.user ? tile("peruser","on",`${F.user}'s own key & budget`) : tile("peruser","","pick a volunteer");
   t.budget = F.spend ? tile("budget","on",`$${F.spend.toFixed(4)} metered by Otari`) : tile("budget","","waiting");
-  t.code = F.numbersOk ? tile("code","on","numbers re-run in sandbox") : F.numbersTried ? tile("code","bad","blocked on hosted (issue #2719)") : tile("code","","numeric claims only");
+  t.code = F.numbersOk ? tile("code","on","numbers re-run in sandbox") : F.numbersTried ? tile("code","bad","didn't run this time (see trace)") : tile("code","","numeric claims only");
   let lit = 0;
   $("#feat").innerHTML = TILES.map(([id, label]) => { const [, st, d] = t[id]; if (st === "on" || st === "warn" || st === "bad" && id !== "code") lit++;
     return `<div class="tile ${st}"><b>${label}</b>${esc(d)}</div>`; }).join("");
