@@ -1,5 +1,6 @@
 # Render's free tier sleeps after ~15 minutes idle, so the first visitor waits ~50 s.
-# During judging, ping the health check every 10 minutes so the demo is awake. Delete after judging.
+# During judging, ping the health check every 10 minutes so the demo is awake. Disabled by default:
+# enable it under Actions > keep-warm (needs GitHub Actions minutes on the account), and disable it after judging.
 name: keep-warm
 on:
   schedule:

@@ -48,7 +48,8 @@ guardrail verdicts (`Otari-Guardrails` header), the volunteer's own key and budg
   trace says so, rather than the whole app failing.
 - The guardrail endpoint lives behind a random token; Claim Check's MCP server only records calls for checks it started.
 - Visitors check on the demo's own key by default; picking a volunteer (Alice or Bob) switches to that person's own Otari key and budget.
-- During judging, a GitHub Actions job (`.github/workflows/keep-warm.yml`) pings `/healthz` every 10 minutes so Render's free tier stays awake.
+- Render's free tier sleeps after ~15 idle minutes, so the first visit can take ~50 s. A keep-warm job
+  (`.github/workflows/keep-warm.yml`, disabled by default) or any uptime monitor pinging `/healthz` every 10 minutes avoids that.
 - Single process by design (rate limits, MCP call log and memory are in-process). Shared reports are kept on the server's disk,
   so on Render's free tier they last until the next restart.
 
