@@ -37,6 +37,9 @@ Note friction as it happens - this becomes the required feedback video + written
 | [#2726](https://github.com/mozilla-ai/otari/issues/2726) | Feature | Let a workspace key teach and read its own smart-router memory on hosted otari.ai | Done in [#2766](https://github.com/mozilla-ai/otari/pull/2766): new `/routing/me/...` routes (next release) |
 | [#2719](https://github.com/mozilla-ai/otari/issues/2719#issuecomment-6529196072) | Comment | Thank-you: code execution confirmed working on hosted after the fix | - |
 | [#2691](https://github.com/mozilla-ai/otari/issues/2691#issuecomment-6526674319) | Comment | Added code-execution repro to the existing "/api/v1/tools reports web tools as available" bug | Closed |
+| [#2814](https://github.com/mozilla-ai/otari/issues/2814) | Feature | Let a Fallback policy move on when a candidate refuses with a 200 (content_filter, or unparseable JSON when JSON was requested) | Open (filed 3 Nov) |
+| [#2815](https://github.com/mozilla-ai/otari/pull/2815) | PR (docs) | docs: say OTARI_BASE_URL is also for otari.ai's EU region in the integration READMEs (follow-up to #2720) | Open (3 Nov) |
+| #2721, #2726, #2691 | Comments | Thank-you replies after the fixes; data point for another hacker on #2691 | 3 Nov |
 
 Not filed separately (kept for the written feedback):
 - Rerank: `POST /rerank` returns "Provider doesn't support rerank." for every model in the hosted catalogue - a catalogue gap rather than a bug.
