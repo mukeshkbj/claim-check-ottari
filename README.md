@@ -27,11 +27,14 @@ Built for the Mozilla Otari Hackathon - Devs Wilding Online (DoraHacks), branch 
   Median 18.6 s and $0.016 per claim, with both judges agreeing on 19 of 20 - see [BENCHMARK.md](BENCHMARK.md).
 
 ## Firefox extension
-Select any claim on a web page (or right-click a link to an article) and choose **Check this claim with Claim Check**:
-Firefox's sidebar opens next to the page and the verdicts stream in, with a link to the full report.
-(In the web app itself, a `?q=` link only fills in the box; it never starts a paid check on its own.)
+Fact-check what you're reading without leaving the page: right-click selected text, a link or anywhere on a page
+and choose **Check ... with Claim Check**, or type a claim into the sidebar. Firefox's sidebar shows each verdict
+with its top sources and the second opinion, then offers **Draft a calm reply** and the full report.
+<kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd> opens the sidebar. (In the web app itself, a `?q=` link only fills in
+the box; it never starts a paid check on its own.)
 Load it from `about:debugging` > *This Firefox* > **Load Temporary Add-on** and pick `extension/firefox/manifest.json` (or `extension/claim-check-firefox.xpi`).
-It can't read pages (permissions: `contextMenus`, `storage`, and the app's own address) and sends nothing until you choose the menu item. See [extension/firefox/README.md](extension/firefox/README.md).
+It can't read pages (permissions: `contextMenus`, `storage`, and the app's own address) and sends nothing until you ask for a check.
+See [extension/firefox/README.md](extension/firefox/README.md).
 
 ## Live feature panel
 The app shows which Otari features each check actually used, as tiles that light up from real response data: models served, routing
@@ -44,6 +47,8 @@ guardrail verdicts (`Otari-Guardrails` header), the volunteer's own key and budg
 - Guardrails run in block mode with `on_unavailable: monitor`: if the guardrail service is down, checks continue and the
   trace says so, rather than the whole app failing.
 - The guardrail endpoint lives behind a random token; Claim Check's MCP server only records calls for checks it started.
+- Visitors check on the demo's own key by default; picking a volunteer (Alice or Bob) switches to that person's own Otari key and budget.
+- During judging, a GitHub Actions job (`.github/workflows/keep-warm.yml`) pings `/healthz` every 10 minutes so Render's free tier stays awake.
 - Single process by design (rate limits, MCP call log and memory are in-process). Shared reports are kept on the server's disk,
   so on Render's free tier they last until the next restart.
 

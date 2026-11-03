@@ -6,7 +6,11 @@
 </head>
 <body>
   <h1>Claim <span>Check</span></h1>
-  <p class="hint" id="hint">Select a claim on any page (or right-click a link) and choose <b>Check this claim with Claim Check</b>.</p>
+  <form id="ask">
+    <textarea id="q" maxlength="4000" rows="3" placeholder="Paste a claim or a link, or right-click any claim, link or page"></textarea>
+    <button id="go" type="submit">Check it</button>
+  </form>
+  <p class="hint" id="hint">Tip: <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd> opens and closes this sidebar.</p>
   <div id="input" hidden></div>
   <div id="status"></div>
   <div id="claims"></div>

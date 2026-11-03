@@ -1,10 +1,14 @@
 # Claim Check for Firefox
 
-Select a claim on any page (or right-click a link to an article), right-click, and choose
-**Check this claim with Claim Check**. Firefox's sidebar opens next to the page and the verdicts stream in:
-open-weight agents behind Otari pull out the claims, search for sources, get a second opinion from a
-different model family, and give a cited verdict. Each check ends with a link to the full report.
-The toolbar button opens or closes the sidebar.
+Fact-check what you're reading without leaving the page. Firefox's sidebar shows each claim's verdict,
+its top sources and a second opinion from a different open-weight model, all checked through Otari.
+
+- **Right-click selected text** and choose **Check this claim with Claim Check**.
+- **Right-click a link** (or anywhere on a page) to check the article it points to.
+- **Or type in the sidebar**: paste a claim or a link and press **Check it**.
+- After a check, **Draft a calm reply** writes a short, friendly reply with sources you could post under the
+  original, and **Full report** opens the shareable report with every source and the agent trace.
+- <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd> (or the toolbar button) opens and closes the sidebar.
 
 ## Install (for testing)
 1. Open `about:debugging#/runtime/this-firefox` in Firefox.
@@ -12,6 +16,7 @@ The toolbar button opens or closes the sidebar.
 3. Select some text on any page, right-click, and choose **Check this claim with Claim Check**.
 
 ## Privacy
-The extension sends only the text you select (or the link you right-click) to the Claim Check app, and only
-when you choose the menu item. It can't read pages: its permissions are `contextMenus`, `storage` (to hand the
-selection to the sidebar) and access to the Claim Check app's own address.
+The extension sends only what you ask it to check (the text you select, the link or page address you
+right-click, or what you type in the sidebar) to the Claim Check app, and only when you ask. It can't read
+pages: its permissions are `contextMenus`, `storage` (to hand your selection to the sidebar) and access to the
+Claim Check app's own address. Firefox shows this as website content and browsing activity being shared.

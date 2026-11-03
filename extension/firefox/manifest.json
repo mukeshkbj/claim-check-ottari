@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Claim Check",
-  "version": "0.2.0",
-  "description": "Right-click a claim or a link and fact-check it in the sidebar with open-weight AI agents running on Otari.",
+  "version": "0.3.0",
+  "description": "Right-click a claim, a link or a whole page and fact-check it in the sidebar with open-weight AI agents running on Otari.",
   "browser_specific_settings": {
     "gecko": {
       "id": "claim-check@mukeshkbj.github.io",
@@ -40,5 +40,13 @@
   "icons": {
     "48": "icon.svg",
     "96": "icon.svg"
+  },
+  "commands": {
+    "_execute_sidebar_action": {
+      "suggested_key": {
+        "default": "Alt+Shift+K"
+      },
+      "description": "Open or close the Claim Check sidebar"
+    }
   }
 }

@@ -27,16 +27,16 @@ Note friction as it happens - this becomes the required feedback video + written
 | 2026-10-30 | Second opinion across model families | Running Mistral Small 3.2 24B next to gpt-oss-120b as a second judge was one extra call with a different model id; Llama 3.3 70B gave the same verdicts but took 15 s vs 2.5 s, which the Otari trace made easy to see. | Worked well |
 
 ## Issues / PRs opened on mozilla-ai/otari
-| # | Type | Title | Link |
+| # | Type | Title | Status (3 Nov) |
 | --- | --- | --- | --- |
-| #2720 | PR (docs) | docs: name the EU host for otari.ai accounts in the EU region | https://github.com/mozilla-ai/otari/pull/2720 |
-| #2719 | Bug | Hosted Otari.ai: otari_code_execution always returns 402 pricing_required, and workspaces can't set the price | https://github.com/mozilla-ai/otari/issues/2719 |
-| #2721 | Bug | Hosted otari.ai: signing in on the default US region silently creates an empty second account for an EU user | https://github.com/mozilla-ai/otari/issues/2721 |
-| #2722 | Feature | A keyless, open-weight guardrail on hosted otari.ai (Llama Guard 4 / gpt-oss-safeguard via /validate) | https://github.com/mozilla-ai/otari/issues/2722 |
-| #2725 | Bug | Hosted otari.ai: an image uploaded to /files and referenced by file_id reaches the model as 'unprocessable attachment' | https://github.com/mozilla-ai/otari/issues/2725 |
-| #2726 | Feature | Let a workspace key teach and read its own smart-router memory (routing/preferences, routing/status) on hosted otari.ai | https://github.com/mozilla-ai/otari/issues/2726 |
-| #2719 | Comment | Thank-you: code execution confirmed working on hosted after the fix | https://github.com/mozilla-ai/otari/issues/2719#issuecomment-6529196072 |
-| #2691 | Comment | Added code-execution repro to the existing "/api/v1/tools reports web tools as available" bug | https://github.com/mozilla-ai/otari/issues/2691#issuecomment-6526674319 |
+| [#2720](https://github.com/mozilla-ai/otari/pull/2720) | PR (docs) | docs: name the EU host for otari.ai accounts in the EU region | Merged (approved by daavoo) |
+| [#2719](https://github.com/mozilla-ai/otari/issues/2719) | Bug | Hosted Otari.ai: otari_code_execution always returns 402 pricing_required, and workspaces can't set the price | Fixed the same day; confirmed working in Claim Check |
+| [#2721](https://github.com/mozilla-ai/otari/issues/2721) | Bug | Hosted otari.ai: signing in on the default US region silently creates an empty second account for an EU user | Fixed: the region picker now defaults by location (next release) |
+| [#2722](https://github.com/mozilla-ai/otari/issues/2722) | Feature | A keyless, open-weight guardrail on hosted otari.ai (Llama Guard 4 / gpt-oss-safeguard via /validate) | Open; related fix [#2763](https://github.com/mozilla-ai/otari/pull/2763) merged (guardrail header now says why a verdict is empty; API keys can list profiles) |
+| [#2725](https://github.com/mozilla-ai/otari/issues/2725) | Bug | Hosted otari.ai: an image uploaded to /files and referenced by file_id reaches the model as 'unprocessable attachment' | Open |
+| [#2726](https://github.com/mozilla-ai/otari/issues/2726) | Feature | Let a workspace key teach and read its own smart-router memory on hosted otari.ai | Done in [#2766](https://github.com/mozilla-ai/otari/pull/2766): new `/routing/me/...` routes (next release) |
+| [#2719](https://github.com/mozilla-ai/otari/issues/2719#issuecomment-6529196072) | Comment | Thank-you: code execution confirmed working on hosted after the fix | - |
+| [#2691](https://github.com/mozilla-ai/otari/issues/2691#issuecomment-6526674319) | Comment | Added code-execution repro to the existing "/api/v1/tools reports web tools as available" bug | Closed |
 
 Not filed separately (kept for the written feedback):
 - Rerank: `POST /rerank` returns "Provider doesn't support rerank." for every model in the hosted catalogue - a catalogue gap rather than a bug.
