@@ -18,7 +18,7 @@ def _rep():
         {"type": "evidence", "claim_id": "c1", "research": {"evidence": [
             {"url": "https://en.wikipedia.org/wiki/Eiffel_Tower"}, {"url": "javascript:alert(1)"}]}},
         {"type": "verdict", "claim_id": "c1", "result": {"verdict": "False", "confidence": "high", "explanation": "Paris.",
-                                                         "second_opinion": {"agree": True, "verdict": "False"}}},
+                                                         "jury": {"agree": 3, "total": 3, "unanimous": True, "contested": False, "votes": []}}},
         {"type": "verdict", "claim_id": "c2", "result": {"verdict": "Opinion"}},
     ]}
 
@@ -27,7 +27,7 @@ def test_summarize_rows_and_safe_sources():
     rows = reports.summarize(_rep())
     assert [r["verdict"] for r in rows] == ["False", "Opinion"]
     assert rows[0]["sources"] == ["https://en.wikipedia.org/wiki/Eiffel_Tower"]
-    assert rows[0]["second"]["agree"] is True
+    assert rows[0]["jury"]["unanimous"] is True
 
 
 def test_card_is_a_1200x630_png():
@@ -38,9 +38,24 @@ def test_card_is_a_1200x630_png():
     assert img.size == (1200, 630) and img.format == "PNG"
 
 
-def test_compare_flags_disagreement():
-    assert agents.compare({"verdict": "False"}, {"verdict": "False"}, "m")["agree"] is True
-    assert agents.compare({"verdict": "False"}, {"verdict": "Misleading"}, "m")["agree"] is False
+def test_jury_summary_counts_dissent_and_names_labs():
+    from claimcheck.otari import Step
+    votes = [({"verdict": "False"}, Step(role="juror", model_requested="mistralai/mistral-small-3.2-24b-instruct-2506")),
+             ({"verdict": "Misleading"}, Step(role="juror", model_requested="google/gemma-3-27b-it")),
+             ({"verdict": "Misleading"}, Step(role="juror", model_requested="meta/llama-3.3-70b-turbo"))]
+    j = agents.jury_summary({"verdict": "False"}, votes)
+    assert [v["lab"] for v in j["votes"]] == ["Mistral AI", "Google", "Meta"]
+    assert (j["agree"], j["total"], j["unanimous"], j["contested"]) == (1, 3, False, True)
+    assert agents.jury_summary({"verdict": "False"}, votes[:1])["unanimous"] is True
+
+
+def test_locate_finds_the_claim_in_the_post():
+    post = "Breaking: UK inflation hit 11.1% in October 2022, and the Great Wall is visible from the Moon!"
+    a, b = agents.locate(post, "the Great Wall is visible from the Moon")
+    assert post[a:b] == "the Great Wall is visible from the Moon"
+    a, b = agents.locate(post, "nothing like it", "UK INFLATION hit 11.1% in October 2022")
+    assert post[a:b] == "UK inflation hit 11.1% in October 2022"
+    assert agents.locate(post, "a paraphrase that isn't there") is None
 
 
 def test_reply_uses_only_chosen_links_and_skips_opinions():
@@ -62,3 +77,11 @@ def test_reply_uses_only_chosen_links_and_skips_opinions():
     assert "junk.example" not in text and "---" not in text and "**" not in text
     assert "https://www.cdc.gov/a" in text and not text.rstrip().endswith(":")
     print(text)
+
+
+def test_rewrite_never_drops_the_posts_numbers():
+    said = "Apollo 11 landed the first humans on the Moon in 1975"
+    assert agents.keep_numbers("Apollo 11 landed the first humans on the Moon", said) == said
+    assert agents.keep_numbers("UK inflation hit 11.1% in October 2022", "UK inflation hit 11.1% in October 2022") \
+        == "UK inflation hit 11.1% in October 2022"
+    assert agents.keep_numbers("Crime rose", "300%") == "Crime rose (300)"

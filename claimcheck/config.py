@@ -21,7 +21,13 @@ MODELS = {
     "fetcher": os.getenv("MODEL_FETCHER", "cc-investigator"),            # reads a linked article via web fetch
     "replier": os.getenv("MODEL_REPLIER", "google/gemma-3-27b-it"),  # drafts a calm reply
 }
-SECOND_OPINION = os.getenv("SECOND_OPINION", "1") == "1"
+# The jury: open-weight models from other labs weigh the same evidence as the presiding judge (gpt-oss-120b),
+# so no single vendor's model decides what is true. Picked for speed and steadiness on hosted Otari (3 Nov):
+# Qwen3 30B ~1 s, Nemotron Nano 9B ~4 s, Gemma 4 26B ~4 s; Mistral Small (7-27 s) and Llama 3.3 70B (15-100 s) varied too much.
+JURY = [m.strip() for m in os.getenv("MODEL_JURY", "alibaba/qwen3-30b-a3b,nvidia/nemotron-nano-9b-v2,"
+        "google/gemma-4-26b-a4b-it").split(",") if m.strip()]
+JURY_ON = os.getenv("JURY", os.getenv("SECOND_OPINION", "1")) == "1"
+JUROR_TIMEOUT_S = float(os.getenv("JUROR_TIMEOUT_S", "15"))
 
 # Public URL of this app once deployed (Render). Enables Otari -> our MCP server and guardrail service.
 # Render sets RENDER_EXTERNAL_URL automatically; PUBLIC_URL overrides it elsewhere.

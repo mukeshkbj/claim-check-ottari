@@ -47,7 +47,7 @@ def summarize(rep: dict) -> list[dict]:
         elif t == "verdict" and cid in rows:
             r = ev.get("result", {})
             rows[cid].update(verdict=r.get("verdict"), confidence=r.get("confidence"),
-                             explanation=r.get("explanation", ""), second=r.get("second_opinion"))
+                             explanation=r.get("explanation", ""), jury=r.get("jury"))
     return [r for r in rows.values() if r["verdict"]]
 
 

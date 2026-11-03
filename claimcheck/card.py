@@ -81,10 +81,11 @@ def render(rows: list[dict], host: str) -> bytes:
     if len(rows) > 3:
         d.text((60, y), f"+ {len(rows) - 3} more claim(s)", font=_font(24), fill=QUIET)
     sources = len({u for r in rows for u in r.get("sources", [])})
-    agree = [r["second"]["agree"] for r in rows if r.get("second")]
+    juries = [r["jury"] for r in rows if r.get("jury")]
     foot = f"{sources} source(s) cited"
-    if agree:
-        foot += f"  ·  both judges agreed on {sum(agree)} of {len(agree)}"
+    if juries:
+        size = max(j["total"] for j in juries) + 1
+        foot += f"  ·  a {size}-lab jury was unanimous on {sum(j['unanimous'] for j in juries)} of {len(juries)}"
     d.line([60, H - 92, W - 60, H - 92], fill=(226, 228, 233), width=2)
     d.text((60, H - 70), foot, font=_font(24), fill=QUIET)
     d.text((W - 60 - d.textlength(host, font=_font(24, True)), H - 70), host, font=_font(24, True), fill=ACCENT)

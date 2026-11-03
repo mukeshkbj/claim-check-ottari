@@ -9,7 +9,7 @@ from typing import AsyncIterator
 
 from . import agents, config, mcp_log, reports
 from .memory import MEMORY
-from .otari import Otari, OtariError
+from .otari import Otari, OtariError, Step
 
 
 URL_RE = re.compile(r"https?://[^\s<>\"']+", re.I)
@@ -63,37 +63,43 @@ async def _check_claim(client: Otari, claim: dict, q: asyncio.Queue, run_id: str
             await q.put(_step_event(nstep, cid))
         if numbers:
             await q.put({"type": "numbers", "claim_id": cid, "numbers": numbers})
-        await q.put({"type": "status", "claim_id": cid, "message": "Judging (two independent judges)"
-                     if config.SECOND_OPINION else "Judging"})
+        jury_on = config.JURY_ON and config.JURY and research.get("evidence")
+        await q.put({"type": "status", "claim_id": cid, "message": f"The jury is weighing the evidence "
+                     f"({len(config.JURY) + 1} models, {len(config.JURY) + 1} labs)" if jury_on else "Judging"})
         main = agents.judge(client, claim, research, numbers)
-        if config.SECOND_OPINION and research.get("evidence"):
-            second = asyncio.wait_for(agents.second_opinion(client, claim, research, numbers), timeout=25)
-            (verdict, jstep), other = await _both(main, second)
-        else:
-            (verdict, jstep), other = await main, None
+        jury_models = config.JURY if jury_on else []
+        jurors = [asyncio.wait_for(agents.juror(client, claim, research, numbers, m), timeout=config.JUROR_TIMEOUT_S)
+                  for m in jury_models]
+        res = await asyncio.gather(main, *jurors, return_exceptions=True)
+        if isinstance(res[0], BaseException):
+            raise res[0]
+        verdict, jstep = res[0]
         await q.put(_step_event(jstep, cid))
-        if other:
-            v2, s2 = other
-            await q.put(_step_event(s2, cid))
-            verdict["second_opinion"] = agents.compare(verdict, v2, s2.upstream_model or s2.model_served
-                                                       or s2.model_requested)
-            if not verdict["second_opinion"]["agree"] and verdict.get("confidence") == "high":
-                verdict["confidence"] = "medium"  # two model families disagree: say so
+        votes, absent = [], []
+        for m, r in zip(jury_models, res[1:]):
+            if isinstance(r, BaseException):  # a slow or failing juror doesn't block the verdict; say who didn't vote
+                why = "no answer in time" if isinstance(r, asyncio.TimeoutError) else \
+                    (getattr(r, "detail", "") or type(r).__name__)[:160]
+                absent.append({"model": m, "lab": agents.lab_of(m), "why": why})
+                await q.put(_step_event(Step(role="juror", model_requested=m, error=why), cid))
+            else:
+                votes.append(r)
+                await q.put(_step_event(r[1], cid))
+        if jury_on:
+            jury = agents.jury_summary(verdict, votes)
+            jury["absent"] = absent
+            verdict["jury"] = jury
+            if jury["contested"]:
+                verdict["confidence"] = "low"       # most of the other labs' models disagree: say so plainly
+            elif not jury["unanimous"] and verdict.get("confidence") == "high":
+                verdict["confidence"] = "medium"
         await q.put({"type": "verdict", "claim_id": cid, "result": verdict})
-        if emb and (not other or verdict["second_opinion"]["agree"]):
-            MEMORY.add(claim["text"], emb, verdict, research)  # only remember verdicts both judges agree on
+        if emb and (not jury_on or verdict["jury"]["unanimous"]):
+            MEMORY.add(claim["text"], emb, verdict, research)  # only remember verdicts the whole jury agreed on
     except OtariError as e:
         await q.put(_budget_or_error(e, cid))
     except Exception as e:  # keep other claims running
         await q.put({"type": "error", "claim_id": cid, "message": f"{type(e).__name__}: {e}"})
-
-
-async def _both(main, second):
-    """Primary verdict is required; the second opinion is best-effort (errors or a slow model are skipped)."""
-    res = await asyncio.gather(main, second, return_exceptions=True)
-    if isinstance(res[0], BaseException):
-        raise res[0]
-    return res[0], (None if isinstance(res[1], BaseException) else res[1])
 
 
 async def run(post: str, api_key: str | None = None, user: str | None = None,
@@ -157,6 +163,7 @@ async def run(post: str, api_key: str | None = None, user: str | None = None,
             yield emit({"type": "error", "message": f"Couldn't pull out the claims ({type(e).__name__}). Please try again."})
             return
         yield emit(_step_event(step))
+        yield emit({"type": "source", "text": post})
         yield emit({"type": "claims", "claims": claims})
         if not claims:
             yield emit({"type": "error", "message": "I couldn't find a claim to check in this post. Try pasting the exact sentence."})

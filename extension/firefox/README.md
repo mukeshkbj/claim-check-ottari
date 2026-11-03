@@ -1,7 +1,7 @@
 # Claim Check for Firefox
 
 Fact-check what you're reading without leaving the page. Firefox's sidebar shows each claim's verdict,
-its top sources and a second opinion from a different open-weight model, all checked through Otari.
+its top sources and how a jury of open-weight models from four labs voted, all checked through Otari.
 
 - **Right-click selected text** and choose **Check this claim with Claim Check**.
 - **Right-click a link** (or anywhere on a page) to check the article it points to.

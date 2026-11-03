@@ -40,15 +40,18 @@ CLAIMS = [
 
 async def one(claim: str, sem: asyncio.Semaphore) -> dict:
     async with sem:
-        t0, cost, verdicts, seconds = time.time(), 0.0, [], []
+        t0, cost, verdicts, seconds, juries = time.time(), 0.0, [], [], []
         async for ev in run(claim):
             if ev["type"] == "step" and ev["step"].get("cost_usd"):
                 cost += ev["step"]["cost_usd"]
             if ev["type"] == "verdict":
                 verdicts.append(ev["result"].get("verdict", ""))
-                seconds.append((ev["result"].get("second_opinion") or {}).get("verdict"))
+                jury = ev["result"].get("jury") or {}
+                seconds.append((jury.get("votes") or [{}])[0].get("verdict"))
+                juries.append(jury)
         return {"claim": claim, "verdict": verdicts[0] if verdicts else "(none)", "seconds": round(time.time() - t0, 1),
-                "cost": cost, "second": seconds[0] if seconds else None}
+                "cost": cost, "second": seconds[0] if seconds else None,
+                "jury": juries[0] if juries else None}
 
 
 def mapped(verdict: str):
@@ -64,19 +67,19 @@ async def main() -> None:
     sem = asyncio.Semaphore(4)
     results = await asyncio.gather(*(one(c, sem) for c, _ in CLAIMS))
     rows, correct, answered = [], 0, 0
-    c2 = a2 = agree = both = 0
+    unanimous = contested = juried = 0
     for (claim, truth), r in zip(CLAIMS, results):
         pred = mapped(r["verdict"])
         ok = "abstained" if pred is None else ("✓" if pred == truth else "✗")
         answered += pred is not None
         correct += pred is not None and pred == truth
-        p2 = mapped(r["second"] or "")
-        a2 += p2 is not None
-        c2 += p2 is not None and p2 == truth
-        if r["second"]:
-            both += 1
-            agree += r["second"] == r["verdict"]
-        rows.append(f"| {claim} | {'true' if truth else 'false'} | {r['verdict']} | {r['second'] or '-'} | {ok} | "
+        j = r["jury"] or {}
+        if j:
+            juried += 1
+            unanimous += bool(j.get("unanimous"))
+            contested += bool(j.get("contested"))
+        votes = ", ".join(f"{v['lab']}: {v['verdict']}" for v in j.get("votes", [])) or "-"
+        rows.append(f"| {claim} | {'true' if truth else 'false'} | {r['verdict']} | {votes} | {ok} | "
                     f"{r['seconds']} s | ${r['cost']:.4f} |")
     secs = [r["seconds"] for r in results]
     costs = [r["cost"] for r in results]
@@ -93,13 +96,14 @@ Mapping: Supported = true; False or Misleading = false; Unsupported or Can't ver
 | Median time per claim | {statistics.median(secs):.1f} s (4 run in parallel) |
 | Average cost per claim | ${statistics.mean(costs):.4f} |
 | Total cost | ${sum(costs):.4f} |
-| Second judge (Mistral Small 3.2) on its own | answered {a2}/{len(CLAIMS)}, {c2} correct |
-| Both judges gave the same verdict | {agree}/{both} claims |
+| Jury unanimous (all four labs agree) | {unanimous}/{juried} claims |
+| Contested (most jurors disagree with the presiding judge) | {contested}/{juried} claims |
 
-The verdict shown to users is the primary judge's (gpt-oss-120b via `cc-judge`); when the second judge disagrees the
-app says so and lowers the confidence. Run locally, so the deployed-only guardrail and MCP hooks were not attached.
+The verdict shown is the presiding judge's (gpt-oss-120b via `cc-judge`, OpenAI). Jurors from Alibaba (Qwen3 30B),
+NVIDIA (Nemotron Nano 9B) and Google (Gemma 4 26B) weigh the same evidence; when they disagree the app says so and
+lowers the confidence. Run locally, so the deployed-only guardrail and MCP hooks were not attached.
 
-| Claim | Truth | Verdict | Second judge | | Time | Cost |
+| Claim | Truth | Verdict | Jury votes | | Time | Cost |
 | --- | --- | --- | --- | --- | --- | --- |
 """ + "\n".join(rows) + "\n\nRe-run with `python scripts/benchmark.py`.\n"
     Path(__file__).resolve().parents[1].joinpath("BENCHMARK.md").write_text(md, encoding="utf-8")

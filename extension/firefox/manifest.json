@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Claim Check",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Right-click a claim, a link or a whole page and fact-check it in the sidebar with open-weight AI agents running on Otari.",
   "browser_specific_settings": {
     "gecko": {

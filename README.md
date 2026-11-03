@@ -1,7 +1,9 @@
 # Claim Check
 
-Paste any viral post and an open-weight agent team pulls out each claim, gathers live sources,
-re-runs the numbers and returns a cited verdict - all through [Otari](https://otari.ai).
+Check a viral post before you share it. Paste a post, a link or a screenshot: open-weight models pull out each
+claim, gather live sources, re-run the numbers, and then **a jury of models from four different labs votes on the
+verdict**, so no single AI company decides what's true. Every step runs through [Otari](https://otari.ai), and the
+page shows each claim marked up in the post in its verdict's colour, next to a live view of how Otari routed the check.
 
 Built for the Mozilla Otari Hackathon - Devs Wilding Online (DoraHacks), branch `otari-hackathon`.
 
@@ -9,9 +11,15 @@ Built for the Mozilla Otari Hackathon - Devs Wilding Online (DoraHacks), branch 
 
 ## What it can do
 - **Paste a link.** Give it a news article or post URL: Otari's `otari_web_fetch` reads the page and the claims in it are checked.
-- **Two independent judges.** Every verdict gets a second opinion from a different open-weight family (Mistral Small 3.2
-  alongside gpt-oss-120b). When they disagree the report says so and lowers the confidence, and only verdicts both
-  judges agree on go into the "already checked" memory.
+- **A jury from four labs.** gpt-oss-120b (OpenAI) presides; Qwen3 30B (Alibaba), Nemotron Nano 9B (NVIDIA) and
+  Gemma 4 26B (Google) weigh exactly the same evidence in parallel. A unanimous jury is shown as such; dissent is
+  shown with each juror's reason, a contested verdict drops to low confidence, and only unanimous verdicts go into the
+  "already checked" memory. A juror that is slow or fails is listed as "didn't vote" rather than hidden.
+- **The post, marked up.** Each claim is highlighted where it appears in the post (or the article you linked), in the
+  colour of its verdict, and links to its evidence.
+- **How Otari runs the check.** A live route beside the results lights up each step from Otari's real responses:
+  guardrails, the routing policy and the model it served, web searches and MCP tools called, the code sandbox, the
+  jury and the metered spend, with a count of the rubric's Otari features used.
 - **Draft a calm reply.** One click writes a short, friendly reply with up to two sources that you could post under
   the original (Gemma 3 27B). It never invents links: they come from the evidence.
 - **Link previews.** Every shared report has a share card image (`/r/<id>/card.png`) and Open Graph tags, so a pasted
@@ -23,23 +31,27 @@ Built for the Mozilla Otari Hackathon - Devs Wilding Online (DoraHacks), branch 
   the UI always shows which earlier claim matched.
 - **Shareable reports** at `/r/<id>` and a "recent checks" list in your browser.
 - **One Otari session per check** (`Otari-Conversation-Id`), so each check reads as a single session in Otari's Sessions view.
-- **Accuracy:** on a 20-claim benchmark it answered 19 and got all 19 right; it abstained ("Can't verify") on 1.
-  Median 18.6 s and $0.016 per claim, with both judges agreeing on 19 of 20 - see [BENCHMARK.md](BENCHMARK.md).
+- **Accuracy:** 20 of 20 correct on a 20-claim benchmark (10 true, 10 false), with the four-lab jury unanimous on
+  all 20, at a median 17.1 s and $0.016 per claim - see [BENCHMARK.md](BENCHMARK.md). The benchmark caught one real bug
+  on the way: the small extractor once rewrote "Apollo 11 landed ... in 1975" without the year, so every judge saw a
+  true sentence. A rewritten claim now can't drop a number or date that the post states.
 
 ## Firefox extension
 Fact-check what you're reading without leaving the page: right-click selected text, a link or anywhere on a page
 and choose **Check ... with Claim Check**, or type a claim into the sidebar. Firefox's sidebar shows each verdict
-with its top sources and the second opinion, then offers **Draft a calm reply** and the full report.
+with its top sources and how the jury voted, then offers **Draft a calm reply** and the full report.
 <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd> opens the sidebar. (In the web app itself, a `?q=` link only fills in
 the box; it never starts a paid check on its own.)
 Load it from `about:debugging` > *This Firefox* > **Load Temporary Add-on** and pick `extension/firefox/manifest.json` (or `extension/claim-check-firefox.xpi`).
 It can't read pages (permissions: `contextMenus`, `storage`, and the app's own address) and sends nothing until you ask for a check.
 See [extension/firefox/README.md](extension/firefox/README.md).
 
-## Live feature panel
-The app shows which Otari features each check actually used, as tiles that light up from real response data: models served, routing
-policy and fallback (`Otari-Fallback` header), web search calls (`otari_tool_calls`), MCP tools Otari really called on our server,
-guardrail verdicts (`Otari-Guardrails` header), the volunteer's own key and budget, and metered spend.
+## How Otari runs the check (live panel)
+Beside the results, each step lights up from real response data as the check runs: the guardrail verdicts
+(`Otari-Guardrails` header), the routing policy and the model it actually served (`Otari-Model`, `Otari-Fallback`),
+web searches and fetches (`otari_tool_calls`), the MCP tools Otari called on Claim Check's server, the code sandbox,
+the jury's labs, and the spend Otari metered on the demo key or a volunteer's own key. Underneath, a counter shows how
+many of the hackathon rubric's eight Otari features this check used, and "Every call through Otari" lists each call.
 
 ## Limits and safety on the public demo
 - Every check spends real money, so the demo allows 12 checks per hour per visitor and 3 at once (`RATE_PER_HOUR`,
@@ -82,7 +94,7 @@ uvicorn app:app --port 8000    # web app at http://127.0.0.1:8000
 | Investigator | `cc-investigator` policy: Qwen3-Next 80B (backup DeepSeek V4 Flash) | `otari_web_search` + Claim Check MCP |
 | Numbers check | `cc-investigator` policy | `otari_code_execution` |
 | Judge | `cc-judge` policy: gpt-oss-120b, tiers down to gpt-oss-20b at 80% of budget | - |
-| Second judge | `mistralai/mistral-small-3.2-24b-instruct-2506` (picked over Llama 3.3 70B: same verdicts, 2.5 s vs 15 s) | - |
+| Jury | `alibaba/qwen3-30b-a3b`, `nvidia/nemotron-nano-9b-v2`, `google/gemma-4-26b-a4b-it` (picked for steady 1-6 s answers; Mistral Small and Llama 3.3 70B varied from 7 to 100 s on hosted providers) | - |
 | Reply writer | `google/gemma-3-27b-it` | - |
 
 Each claim is checked in parallel; every call's model, tools, tokens and cost stream to the trace panel.
@@ -90,8 +102,8 @@ Each claim is checked in parallel; every call's model, tools, tokens and cost st
 ## Otari features used
 | Rubric feature | How Claim Check uses it | Where |
 | --- | --- | --- |
-| Open-weight models (x8) | Llama 3.1 8B, Qwen3-Next 80B, gpt-oss-120b, Mistral Small 3.2 24B, Gemma 3 27B, Llama Guard 4, gpt-oss-safeguard-20b, Qwen3 Embedding 0.6B (+ gpt-oss-20b / DeepSeek V4 Flash as backups) | `claimcheck/config.py` |
-| Multiple models, distinct roles | Page reader, Extractor, Investigator, Judge, Second judge, Reply writer, Screenshot reader, privacy guard, injection guard | `claimcheck/agents.py`, `claimcheck/guard.py` |
+| Open-weight models (x11) | Llama 3.1 8B, Qwen3-Next 80B, gpt-oss-120b, Qwen3 30B, Nemotron Nano 9B, Gemma 4 26B, Gemma 3 27B, Llama Guard 4, gpt-oss-safeguard-20b, Qwen3 Embedding 0.6B, gpt-oss-20b (+ DeepSeek V4 Flash as a backup) | `claimcheck/config.py` |
+| Multiple models, distinct roles | Page reader, extractor, investigator, numbers check, presiding judge, three jurors from other labs, reply writer, screenshot reader, privacy guard, injection guard | `claimcheck/agents.py`, `claimcheck/guard.py` |
 | Routing & fallbacks | Otari policies `cc-extractor` (Llama 3.1 8B -> gpt-oss-20b) and `cc-investigator` (Qwen3-Next 80B -> DeepSeek V4 Flash) and a budget tier-down `cc-judge` (gpt-oss-120b, switching to gpt-oss-20b once a volunteer has used 80% of their budget); "Simulate provider failure" switch triggers a real failover; trace reads `Otari-Fallback`, `Otari-Model`, `Otari-Attempt-Count` | `claimcheck/otari.py` |
 | Web search / fetch | `otari_web_search` for every claim (up to 2 searches); `otari_web_fetch` reads any article you paste as a link (and per claim with `USE_WEB_FETCH=1`, off by default for speed). Sources the model cites but Otari never retrieved are marked unverified | `claimcheck/agents.py` |
 | MCP | Claim Check's own MCP server (Wayback Machine, Wikipedia, Wikidata) passed to Otari via `mcp_servers` | `claimcheck/mcp_tools.py` |

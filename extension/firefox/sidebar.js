@@ -56,9 +56,13 @@ function handle(ev, cards) {
       c.body.append(el("span", `v v-${String(r.verdict || "").replace(/[^A-Za-z]/g, "")}`, r.verdict), " ",
                     el("span", "kind", `${r.confidence} confidence`), el("p", "expl", r.explanation || ""));
       if (ev.cached) c.body.append(el("div", "second", "♻ Checked recently: verdict reused"));
-      const o = r.second_opinion;
-      if (o) c.body.append(el("div", o.agree ? "second" : "second dis",
-        o.agree ? `✓ Second judge (${shortModel(o.model)}) agrees` : `⚠ Judges disagree: ${shortModel(o.model)} says ${o.verdict}`));
+      const j = r.jury;
+      if (j) {
+        const n = j.total + 1;
+        c.body.append(el("div", j.unanimous ? "second" : "second dis", j.unanimous
+          ? `Jury: unanimous across ${n} labs (OpenAI, ${j.votes.map(v => v.lab).join(", ")})`
+          : `Jury: ${j.agree + 1} of ${n} labs agree. ` + j.votes.filter(v => !v.agree).map(v => `${v.lab} says ${v.verdict}`).join("; ")));
+      }
     } break;
     case "error": (c ? c.body : $("#claims")).append(el("p", "err", ev.message)); break;
     case "blocked": $("#claims").append(el("p", "err", `Blocked by a guardrail: ${ev.message}`)); setStatus("Blocked"); break;

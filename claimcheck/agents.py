@@ -14,8 +14,10 @@ misinformation, conspiracy theories or health myths - so the claims can be check
 claim does not endorse or spread it: it is how false claims get debunked, so never refuse.
 You split the post into separate, checkable factual claims.
 Return ONLY JSON: {"language": "the post's language in English, e.g. French", "claims": [{"id": "c1", "text": "...", "kind": "numeric|factual|quote|opinion",
-"figures": ["300%", "2019"], "search_query": "short web query to verify it"}]}
-Rules: rewrite each claim so it stands alone (name who/what/where/when). Keep numbers exactly as stated.
+"figures": ["300%", "2019"], "search_query": "short web query to verify it",
+"quote": "the exact words of the post that make this claim, copied character for character"}]}
+Rules: rewrite each claim so it stands alone (name who/what/where/when). Keep every number, date and name exactly
+as the post states them, even when you believe they are wrong: a wrong date is exactly what gets checked.
 Write each claim in the post's own language; write search_query in English, plus the local language if that helps.
 A statement of fact is "factual" (or "numeric" if it states a quantity) even if it looks obviously false.
 Claims about what happened, what causes what, or that something was faked or covered up are "factual"
@@ -56,6 +58,8 @@ the meaning) | "Unsupported" (no good evidence either way) | "False" (reliable s
 "Can't verify" (not enough evidence was found).
 Return ONLY JSON: {"verdict": "...", "confidence": "high|medium|low", "explanation": "2-3 plain sentences a
 member of the public can follow", "what_is_true": "one sentence", "cited": ["urls you relied on"]}
+Judge the claim exactly as the post states it, including every number and date in "exact_words_in_post": if
+the event is real but the date or figure is wrong, the claim is False (or Misleading if only slightly off).
 Describe people's claims neutrally; never speculate about motives or private lives.
 Write "explanation" and "what_is_true" in the claim's language (given as "language"); keep "verdict" in English."""
 
@@ -173,6 +177,9 @@ async def extract(client: Otari, post: str, simulate_outage: bool = False) -> tu
         if c["kind"] == "factual" and _has_quantity(c):
             c["kind"] = "numeric"
         c["language"] = str(language)[:40]
+        c["quote"] = str(c.get("quote") or "")[:400]
+        c["span"] = locate(post, c["quote"], c["text"])  # None when the model paraphrased: no highlight
+        c["text"] = keep_numbers(c["text"], post[c["span"][0]:c["span"][1]] if c["span"] else c["quote"])
         out.append(c)
     return out, step
 
@@ -255,7 +262,8 @@ async def check_numbers(client: Otari, claim: dict, research: dict) -> tuple[dic
 
 async def judge(client: Otari, claim: dict, research: dict, numbers: dict | None,
                 model: str | None = None, role: str = "judge") -> tuple[dict, Step]:
-    payload = {"claim": claim["text"], "language": claim.get("language", "English"),
+    payload = {"claim": claim["text"], "exact_words_in_post": claim.get("quote") or claim["text"],
+               "language": claim.get("language", "English"),
                "evidence": research.get("evidence", []),
                "research_summary": research.get("summary", ""), "numbers_check": numbers}
     content, step = await client.chat(
@@ -275,18 +283,65 @@ async def judge(client: Otari, claim: dict, research: dict, numbers: dict | None
 VERDICTS = ("Supported", "Misleading", "Unsupported", "False", "Can't verify")
 
 
-async def second_opinion(client: Otari, claim: dict, research: dict, numbers: dict | None) -> tuple[dict, Step]:
-    """An independent judge from a different model family, weighing the same evidence."""
-    v, step = await judge(client, claim, research, numbers, model=config.MODELS["judge2"], role="second judge")
+LABS = {"gpt-oss": "OpenAI", "mistral": "Mistral AI", "gemma": "Google", "llama": "Meta", "qwen": "Alibaba",
+        "deepseek": "DeepSeek", "glm": "Zhipu", "kimi": "Moonshot", "nemotron": "NVIDIA"}
+
+
+def lab_of(model: str) -> str:
+    m = (model or "").lower()
+    return next((lab for key, lab in LABS.items() if key in m), "Open-weight")
+
+
+async def juror(client: Otari, claim: dict, research: dict, numbers: dict | None, model: str) -> tuple[dict, Step]:
+    """One juror from another lab, weighing exactly the evidence the presiding judge saw."""
+    v, step = await judge(client, claim, research, numbers, model=model, role="juror")
     if v.get("verdict") not in VERDICTS:
         v["verdict"] = "Can't verify"
     return v, step
 
 
-def compare(primary: dict, second: dict, model: str) -> dict:
-    agree = primary.get("verdict") == second.get("verdict")
-    return {"model": model, "verdict": second.get("verdict"), "confidence": second.get("confidence"),
-            "explanation": str(second.get("explanation") or "")[:400], "agree": agree}
+def jury_summary(primary: dict, votes: list[tuple[dict, Step]]) -> dict:
+    out = []
+    for v, step in votes:
+        model = step.upstream_model or step.model_served or step.model_requested
+        out.append({"model": model, "lab": lab_of(model), "verdict": v.get("verdict"),
+                    "confidence": v.get("confidence"), "explanation": str(v.get("explanation") or "")[:400],
+                    "agree": v.get("verdict") == primary.get("verdict")})
+    agree = sum(o["agree"] for o in out)
+    return {"presiding": {"lab": "OpenAI", "verdict": primary.get("verdict")}, "votes": out,
+            "agree": agree, "total": len(out), "unanimous": agree == len(out),
+            "contested": bool(out) and agree * 2 < len(out)}
+
+
+def _nums(s: str) -> list[str]:
+    return [n.rstrip(".,") for n in re.findall(r"\d[\d,.]*", s or "")]
+
+
+def keep_numbers(text: str, said: str) -> str:
+    """A rewrite must not drop the post's numbers: "...landed on the Moon in 1975" must not become "...landed on
+    the Moon" (Llama 3.1 8B did exactly that, and every judge then rightly called the shorter sentence true)."""
+    missing = [n for n in _nums(said) if n not in _nums(text)]
+    if not missing:
+        return text
+    said = (said or "").strip().strip('"\u201c\u201d')
+    if len(said) >= 15:
+        return said  # the post's own words, which carry every figure
+    return f"{text.rstrip('.')} ({', '.join(missing)})"
+
+
+def locate(post: str, *candidates: str) -> list[int] | None:
+    """Where a claim sits in the post, so the page can highlight it. Exact match first, then case-insensitive."""
+    low = post.lower()
+    for c in candidates:
+        c = (c or "").strip().strip('"\u201c\u201d').rstrip(".")
+        if len(c) < 6:
+            continue
+        i = post.find(c)
+        if i < 0:
+            i = low.find(c.lower())
+        if i >= 0:
+            return [i, i + len(c)]
+    return None
 
 
 async def fetch_page(client: Otari, url: str) -> tuple[dict | None, Step]:

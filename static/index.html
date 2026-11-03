@@ -4,167 +4,523 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Claim Check</title>
+<meta name="description" content="Check a viral post before you share it: open-weight models from four labs find each claim, look for sources and vote on a verdict, through Otari.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#faf8f5;--card:#fff;--ink:#1d1b19;--quiet:#6b655e;--line:#e6e1da;--accent:#3a5bd9;
---good:#2f7d4f;--bad:#b3362c;--warn:#b7791f;--muted:#7a7570;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif}
-@media (prefers-color-scheme:dark){:root{--bg:#161514;--card:#1f1e1c;--ink:#efece8;--quiet:#a39d96;--line:#34312e;--accent:#8aa2ff}}
-*{box-sizing:border-box}main>*{min-width:0}.nums,.err,.expl,.src{overflow-wrap:anywhere}body{margin:0;background:var(--bg);color:var(--ink);line-height:1.5}
-header{max-width:1100px;margin:0 auto;padding:28px 20px 8px}
-h1{margin:0;font-size:26px;letter-spacing:-.01em}h1 span{color:var(--accent)}
-header p{margin:4px 0 0;color:var(--quiet)}
-main{max-width:1100px;margin:0 auto;padding:12px 20px 60px;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px}
-@media (max-width:860px){main{grid-template-columns:minmax(0,1fr)}}
-html,body{overflow-x:hidden}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
-textarea{width:100%;min-height:120px;border:1px solid var(--line);border-radius:8px;padding:12px;font:inherit;
-background:var(--bg);color:var(--ink);resize:vertical}
-.row{display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap}
-button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 18px;font:inherit;font-weight:600;cursor:pointer}
-button:disabled{opacity:.5;cursor:default}.ghost{background:none;color:var(--accent);border:1px solid var(--line)}
-#status{color:var(--quiet);font-size:14px}
-.claim{margin-top:14px}.claim h3{margin:0 0 6px;font-size:16px;font-weight:600}
-.kind{font-size:12px;color:var(--quiet);text-transform:uppercase;letter-spacing:.05em}
-.verdict{display:inline-block;font-weight:700;font-size:13px;padding:3px 10px;border-radius:999px;border:1.5px solid currentColor;margin-right:8px}
-.v-Supported{color:var(--good)}.v-False{color:var(--bad)}.v-Misleading{color:var(--warn)}
-.v-Unsupported,.v-Cantverify,.v-Opinion,.v-pending{color:var(--muted)}
-.expl{margin:8px 0}.true{color:var(--quiet);font-size:14px}
-.src{font-size:14px;margin:4px 0;padding-left:10px;border-left:3px solid var(--line)}
-.src.supports{border-color:var(--good)}.src.contradicts{border-color:var(--bad)}
-.src a{color:var(--accent);word-break:break-all}.src q{color:var(--quiet)}
-.nums{font-size:14px;background:var(--bg);border-radius:8px;padding:8px 10px;margin-top:8px}
-.nums code{font-size:12px;white-space:pre-wrap;display:block;margin-top:4px;color:var(--quiet)}
-aside h2{font-size:15px;margin:0 0 8px}.step{font-size:13px;border-top:1px solid var(--line);padding:7px 0}
-.step b{text-transform:capitalize}.step .m{color:var(--quiet);word-break:break-all}.fb{color:var(--warn);font-weight:600}
-.err{color:var(--bad)}.blocked{border-color:var(--bad)}.blocked b{color:var(--bad)}
-select{font:inherit;padding:6px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
-.badge{font-size:11px;border:1px solid var(--line);border-radius:999px;padding:1px 7px;margin-left:4px;color:var(--quiet)}.tot{font-size:14px;margin-top:8px;font-weight:600}
-.spin{display:inline-block;width:10px;height:10px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:s 1s linear infinite;margin-right:6px}
-@keyframes s{to{transform:rotate(360deg)}}
-.feat{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-bottom:14px}
-.tile{min-width:0;overflow-wrap:anywhere;border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12px;line-height:1.3;color:var(--quiet);transition:all .25s}
-.tile b{display:block;font-size:12.5px;color:var(--quiet)}
-.tile.on{border-color:var(--good);background:color-mix(in srgb,var(--good) 10%,transparent);color:var(--ink)}.tile.on b{color:var(--good)}
-.tile.warn{border-color:var(--warn);background:color-mix(in srgb,var(--warn) 12%,transparent);color:var(--ink)}.tile.warn b{color:var(--warn)}
-.tile.bad{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 10%,transparent);color:var(--ink)}.tile.bad b{color:var(--bad)}
-.tile.idle b::after{content:" ·";}
-.shot{display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap}.shot img{max-height:70px;border-radius:6px;border:1px solid var(--line)}
-.linkbtn{background:none;border:0;color:var(--accent);padding:0;font-weight:600;cursor:pointer}
-.second{font-size:13px;margin-top:6px;color:var(--quiet)}.second.dis{color:var(--warn);font-weight:600}
-.reply{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;margin-top:8px;font-size:15px}
-.cardimg{width:100%;max-width:420px;border:1px solid var(--line);border-radius:8px;margin-top:8px;display:block}
-.cached{font-size:12px;color:var(--warn);margin-top:4px}.transcript{white-space:pre-wrap;font-size:14px;color:var(--quiet)}
-.hist{font-size:13px;margin-top:10px}.hist a{color:var(--accent);text-decoration:none}.hist div{padding:3px 0;border-top:1px solid var(--line)}
-.banner{background:color-mix(in srgb,var(--accent) 10%,transparent);border:1px solid var(--accent);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:14px}
-.subhead{font-size:12px;color:var(--quiet);margin:2px 0 6px;text-transform:uppercase;letter-spacing:.05em}
-.fhead{display:flex;justify-content:space-between;align-items:baseline}.fhead span{font-size:12px;color:var(--quiet)}
+/* ---------- tokens: paper, ink, signal blue, and highlighter inks for verdicts */
+:root{
+  --paper:#F6F7F9; --sheet:#FFFFFF; --ink:#1D2140; --ink-2:#4A5070; --ink-3:#7C8199; --rule:#E2E5EC; --rule-2:#CDD2DD;
+  --signal:#2B47F5; --signal-soft:#E8ECFF;
+  --mk-sup:#B9F0C8; --tx-sup:#0D5B2C; --mk-false:#FFB8CB; --tx-false:#8E0F33; --mk-mis:#FFE68A; --tx-mis:#6B4D00;
+  --mk-op:#DCD0FF; --tx-op:#4A2C99; --mk-unk:#DDE1E8; --tx-unk:#454B63; --mk-pend:rgba(43,71,245,.10);
+  --sans:"Schibsted Grotesk",ui-sans-serif,system-ui,sans-serif; --serif:Newsreader,"Iowan Old Style",Georgia,serif;
+  --r-s:6px; --r-m:10px; --r-l:16px;
+}
+@media (prefers-color-scheme:dark){:root{
+  --paper:#12152A; --sheet:#1A1E38; --ink:#ECEEF7; --ink-2:#B7BCD3; --ink-3:#8A90AB; --rule:#2B3054; --rule-2:#3A4070;
+  --signal:#8FA0FF; --signal-soft:#232A5A;
+  --mk-sup:rgba(110,231,150,.30); --tx-sup:#A7F3C1; --mk-false:rgba(255,120,160,.32); --tx-false:#FFC2D3;
+  --mk-mis:rgba(255,214,90,.30); --tx-mis:#FFE69A; --mk-op:rgba(176,150,255,.32); --tx-op:#D9CCFF;
+  --mk-unk:rgba(190,198,220,.22); --tx-unk:#D3D8E8; --mk-pend:rgba(143,160,255,.16);
+}}
+*{box-sizing:border-box} html,body{overflow-x:hidden} [hidden]{display:none!important}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+a{color:var(--signal);text-underline-offset:2px} button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--signal);outline-offset:2px;border-radius:4px}
+.wrap{max-width:1240px;margin:0 auto;padding:0 24px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 
-@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(37,99,235,.5)}50%{box-shadow:0 0 0 6px rgba(37,99,235,0)}}
-#go.pulse{animation:pulse 1.4s ease-in-out 3}
+/* ---------- masthead */
+.top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px 0 8px}
+.mark{display:flex;align-items:center;gap:10px;font-weight:800;font-size:20px;letter-spacing:-.01em;color:var(--ink);text-decoration:none}
+.mark svg{width:30px;height:30px}
+.top nav{display:flex;gap:18px;font-size:14px}.top nav a{color:var(--ink-2);text-decoration:none}.top nav a:hover{color:var(--signal)}
+
+/* ---------- hero */
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:40px;align-items:start;padding:28px 0 60px}
+h1{font:800 clamp(34px,4.6vw,56px)/1.02 var(--sans);letter-spacing:-.025em;margin:0 0 14px;max-width:16ch;text-wrap:balance}
+.lede{font:400 19px/1.55 var(--serif);color:var(--ink-2);max-width:56ch;margin:0}
+
+/* the one memorable thing: highlighter marks */
+mark.hl{color:inherit;background:none;padding:.05em .12em;margin:0 -.04em;border-radius:.35em .2em .4em .25em;
+  background-image:linear-gradient(100deg,var(--mk) 0%,var(--mk) 100%);background-repeat:no-repeat;
+  background-size:100% 78%;background-position:0 60%;-webkit-box-decoration-break:clone;box-decoration-break:clone;
+  --mk:var(--mk-pend);transition:background-color .3s}
+mark.hl.pending{--mk:transparent;text-decoration:underline 2px dashed var(--rule-2);text-underline-offset:5px}
+mark.hl.checking{--mk:var(--mk-pend);text-decoration:none}
+mark.hl.v-Supported{--mk:var(--mk-sup)} mark.hl.v-False{--mk:var(--mk-false)} mark.hl.v-Misleading{--mk:var(--mk-mis)}
+mark.hl.v-Opinion{--mk:var(--mk-op)} mark.hl.v-Unsupported,mark.hl.v-Cantverify{--mk:var(--mk-unk)}
+mark.hl.landed{animation:sweep .7s cubic-bezier(.2,.7,.2,1) both}
+@keyframes sweep{from{background-size:0% 78%}to{background-size:100% 78%}}
+mark.hl sup{font:700 11px/1 var(--sans);color:var(--ink-2);margin-left:2px;vertical-align:.55em}
+mark.hl a{color:inherit;text-decoration:none}
+@media (prefers-reduced-motion:reduce){mark.hl.landed{animation:none}*{scroll-behavior:auto!important}}
+
+/* ---------- the desk: where a post goes in */
+.desk{background:var(--sheet);border:1px solid var(--rule);border-radius:var(--r-l);padding:18px 18px 14px;margin-top:26px;
+  box-shadow:0 1px 0 var(--rule),0 18px 40px -28px rgba(29,33,64,.35)}
+.desk textarea{width:100%;min-height:118px;border:0;background:transparent;resize:vertical;padding:4px 2px;
+  font:400 21px/1.45 var(--serif);color:var(--ink)}
+.desk textarea::placeholder{color:var(--ink-3)} .desk textarea:focus{outline:none}
+.desk:focus-within{border-color:var(--signal)}
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px;border-top:1px solid var(--rule);padding-top:12px;margin-top:8px}
+.btn{border:1px solid transparent;border-radius:999px;padding:10px 20px;font-weight:700;cursor:pointer;line-height:1.2}
+.btn-go{background:var(--signal);color:#fff}.btn-go:hover{filter:brightness(1.08)}.btn-go:disabled{opacity:.55;cursor:default}
+@media (prefers-color-scheme:dark){.btn-go{color:#0E1230}}
+.btn-quiet{background:transparent;border-color:var(--rule-2);color:var(--ink)}.btn-quiet:hover{border-color:var(--signal);color:var(--signal)}
+.btn-small{padding:7px 14px;font-size:14px}
+.filebtn{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+#status{font-size:14px;color:var(--ink-2);margin-left:auto;min-height:1.5em;display:flex;align-items:center;gap:8px}
+.shotrow{display:flex;align-items:center;gap:10px;margin-top:10px}
+.shotrow img{max-height:64px;border-radius:var(--r-s);border:1px solid var(--rule)}
+.linkbtn{background:none;border:0;color:var(--signal);font-weight:600;cursor:pointer;padding:0}
+details.nets{margin-top:12px;font-size:14px;color:var(--ink-2)}
+details.nets summary{cursor:pointer;font-weight:600;color:var(--ink)}
+.nets .row{display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-top:10px}
+.nets label{display:flex;align-items:center;gap:8px}
+select{padding:6px 10px;border-radius:var(--r-s);border:1px solid var(--rule-2);background:var(--sheet)}
+.hint{font-size:13px;color:var(--ink-3);margin:8px 2px 0}
+.spin{width:12px;height:12px;border:2px solid var(--rule-2);border-top-color:var(--signal);border-radius:50%;animation:s 1s linear infinite;flex:none}
+@keyframes s{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:3s}}
+.pulse{animation:pulse 1.4s ease-in-out 3}@keyframes pulse{50%{box-shadow:0 0 0 7px color-mix(in srgb,var(--signal) 25%,transparent)}}
+
+/* example + legend, shown before the first check */
+.example{margin-top:22px;padding:2px 0 0 18px;border-left:3px solid var(--rule-2)}
+.example p{font:400 19px/1.75 var(--serif);margin:4px 0 10px;max-width:60ch}
+.example .cap{font-size:13px;color:var(--ink-3)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--ink-2)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:22px;height:10px;border-radius:4px;display:inline-block}
+
+/* ---------- results */
+.results{padding:22px 0 40px}
+.banner{background:var(--signal-soft);border-radius:var(--r-m);padding:12px 16px;margin:0 0 18px;font-size:15px}
+.source{background:var(--sheet);border:1px solid var(--rule);border-radius:var(--r-l);padding:22px 24px;margin-bottom:22px}
+.source h2,.sec h2{font:700 15px/1.3 var(--sans);margin:0 0 10px;color:var(--ink-2)}
+.source .text{font:400 21px/1.75 var(--serif);white-space:pre-wrap;overflow-wrap:anywhere;max-height:440px;overflow:auto}
+.source .from{font-size:14px;color:var(--ink-3);margin:12px 0 0}
+.source .from a{overflow-wrap:anywhere}
+
+.claim{background:var(--sheet);border:1px solid var(--rule);border-radius:var(--r-m);padding:20px 22px;margin-bottom:14px;scroll-margin-top:18px}
+.claim.focus{border-color:var(--signal)}
+.claim .head{display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;align-items:baseline}
+.claim .num{font:700 13px/1 var(--sans);color:var(--ink-3);width:24px;height:24px;border-radius:50%;border:1.5px solid var(--rule-2);display:grid;place-items:center}
+.claim h3{font:500 20px/1.4 var(--serif);margin:0;overflow-wrap:anywhere}
+.claim .body{margin:12px 0 0 36px}
+.vline{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.vword{font:800 17px/1 var(--sans);padding:.28em .45em;border-radius:.3em .2em .35em .22em;background:var(--mk,var(--mk-unk));color:var(--tx,var(--tx-unk))}
+.vword.v-Supported{--mk:var(--mk-sup);--tx:var(--tx-sup)}.vword.v-False{--mk:var(--mk-false);--tx:var(--tx-false)}
+.vword.v-Misleading{--mk:var(--mk-mis);--tx:var(--tx-mis)}.vword.v-Opinion{--mk:var(--mk-op);--tx:var(--tx-op)}
+.conf{font-size:14px;color:var(--ink-2)}
+.wait{display:flex;align-items:center;gap:8px;font-size:15px;color:var(--ink-2)}
+.expl{font:400 18px/1.6 var(--serif);margin:10px 0 0;max-width:68ch}
+.truth{font-size:15px;color:var(--ink-2);margin:8px 0 0}
+.cached{font-size:14px;color:var(--ink-2);background:var(--signal-soft);border-radius:var(--r-s);padding:6px 10px;margin-top:10px}
+
+/* jury bench */
+.bench{margin-top:16px;border-top:1px solid var(--rule);padding-top:12px}
+.bench .tally{font-size:14px;color:var(--ink-2);margin:0 0 8px}
+.bench .tally b{color:var(--ink)}
+.seats{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:8px}
+.seat{border:1px solid var(--rule);border-radius:var(--r-s);padding:8px 10px;font-size:13px;line-height:1.35;min-width:0}
+.seat .lab{font-weight:700;color:var(--ink)} .seat .mdl{color:var(--ink-3);overflow-wrap:anywhere}
+.seat .vote{display:inline-block;margin-top:5px;font-weight:700;padding:1px 6px;border-radius:4px;background:var(--mk,var(--mk-unk));color:var(--tx,var(--tx-unk))}
+.seat.presiding{border-color:var(--ink-2)}
+.seat.dissent{border-style:dashed;border-color:var(--tx-mis)}
+.seat.absent{opacity:.6}
+.seat .vote.v-Supported{--mk:var(--mk-sup);--tx:var(--tx-sup)}.seat .vote.v-False{--mk:var(--mk-false);--tx:var(--tx-false)}
+.seat .vote.v-Misleading{--mk:var(--mk-mis);--tx:var(--tx-mis)}
+.dissents{margin:10px 0 0;padding:0;list-style:none;font-size:14px;color:var(--ink-2)}
+.dissents li{margin-top:6px}
+
+/* evidence */
+.ev{margin-top:14px;display:grid;gap:10px}
+.src{display:grid;grid-template-columns:4px minmax(0,1fr);gap:12px;font-size:15px}
+.src::before{content:"";border-radius:2px;background:var(--rule-2)}
+.src.supports::before{background:var(--tx-sup)}.src.contradicts::before{background:var(--tx-false)}
+.src a{font-weight:600;overflow-wrap:anywhere}.src .pub{color:var(--ink-3)}
+.src q{display:block;font:italic 400 16px/1.5 var(--serif);color:var(--ink-2);margin-top:2px;quotes:"\201C" "\201D"}
+.src .unv{font-size:12px;color:var(--ink-3)}
+.nums{margin-top:12px;font-size:15px;background:var(--paper);border-radius:var(--r-s);padding:10px 12px;overflow-wrap:anywhere}
+.nums code{display:block;white-space:pre-wrap;font-size:13px;color:var(--ink-2);margin-top:6px}
+.err{color:var(--tx-false);overflow-wrap:anywhere}
+.stop{background:var(--sheet);border:2px solid var(--tx-false);border-radius:var(--r-m);padding:18px 20px;margin-bottom:14px}
+.stop h3{margin:0 0 4px;font-size:18px;color:var(--tx-false)}
+
+/* share + reply */
+.share{background:var(--sheet);border:1px solid var(--rule);border-radius:var(--r-m);padding:18px 20px;margin:4px 0 18px}
+.share h2{font-size:17px;margin:0 0 4px}.share p{margin:0 0 10px;color:var(--ink-2);font-size:14px}
+.share .linkrow{display:flex;gap:8px}.share input{flex:1;min-width:0;padding:9px 12px;border:1px solid var(--rule-2);border-radius:999px;background:var(--paper)}
+.share .grid{display:grid;grid-template-columns:minmax(0,260px) minmax(0,1fr);gap:18px;margin-top:14px;align-items:start}
+.cardimg{width:100%;border:1px solid var(--rule);border-radius:var(--r-s);display:block}
+.reply{white-space:pre-wrap;overflow-wrap:anywhere;font:400 17px/1.55 var(--serif);background:var(--paper);border-radius:var(--r-s);padding:12px 14px;margin-top:10px}
+.quietline{font-size:13px;color:var(--ink-3);margin-top:6px}
+
+/* ---------- Otari route (sticky) */
+.route{position:sticky;top:16px;background:var(--sheet);border:1px solid var(--rule);border-radius:var(--r-l);padding:20px 20px 14px}
+.route h2{font:800 18px/1.25 var(--sans);margin:0}
+.route .sub{font-size:14px;color:var(--ink-2);margin:4px 0 14px}
+.stations{list-style:none;margin:0;padding:0;position:relative}
+.st{position:relative;display:grid;grid-template-columns:22px minmax(0,1fr);gap:10px;padding:0 0 14px}
+.st::before{content:"";position:absolute;left:10px;top:20px;bottom:0;width:2px;background:var(--rule)}
+.st:last-child::before{display:none}
+.st.done::before,.st.warn::before{background:var(--signal)}
+.dot{width:22px;height:22px;border-radius:50%;border:2px solid var(--rule-2);background:var(--sheet);display:grid;place-items:center;z-index:1}
+.st.run .dot{border-color:var(--signal);border-top-color:transparent;animation:s 1s linear infinite}
+.st.done .dot{background:var(--signal);border-color:var(--signal)}
+.st.done .dot::after{content:"";width:8px;height:5px;border:2px solid #fff;border-top:0;border-right:0;transform:rotate(-45deg) translate(1px,-1px)}
+.st.warn .dot{background:var(--mk-mis);border-color:var(--tx-mis)}
+.st.bad .dot{background:var(--mk-false);border-color:var(--tx-false)}
+.st.skip{opacity:.45}
+.st .name{font-weight:700;font-size:15px;line-height:1.25}
+.st .feat{font-size:12.5px;color:var(--signal);font-weight:600}
+.st .det{font-size:13.5px;color:var(--ink-2);overflow-wrap:anywhere;margin-top:1px}
+.st.warn .det{color:var(--tx-mis)} .st.bad .det{color:var(--tx-false)}
+.score{display:flex;align-items:baseline;gap:10px;border-top:1px solid var(--rule);padding-top:12px;margin-top:2px}
+.score b{font:800 30px/1 var(--sans);letter-spacing:-.02em}.score span{font-size:14px;color:var(--ink-2)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chip{font-size:12.5px;border:1px solid var(--rule-2);border-radius:999px;padding:3px 9px;color:var(--ink-3)}
+.chip.on{border-color:var(--signal);color:var(--signal);background:var(--signal-soft);font-weight:600}
+details.trace{margin-top:14px;border-top:1px solid var(--rule);padding-top:10px;font-size:13.5px}
+details.trace summary{cursor:pointer;font-weight:700}
+.step{border-top:1px solid var(--rule);padding:8px 0;color:var(--ink-2)}.step:first-child{border-top:0}
+.step b{color:var(--ink);text-transform:capitalize}.step .m{overflow-wrap:anywhere}
+.tag{display:inline-block;font-size:11.5px;border:1px solid var(--rule-2);border-radius:999px;padding:0 7px;margin:2px 4px 0 0}
+.tag.fb{border-color:var(--tx-mis);color:var(--tx-mis)}
+.tot{font-weight:700;margin-top:6px}
+
+.hist{margin-top:28px}.hist h2{font-size:15px;color:var(--ink-2);margin:0 0 6px}
+.hist ol{list-style:none;margin:0;padding:0}.hist li{border-top:1px solid var(--rule);padding:8px 0;font-size:15px;display:flex;gap:10px;justify-content:space-between}
+.hist li a{text-decoration:none;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.hist li a:hover{color:var(--signal)}
+.hist li span{color:var(--ink-3);font-size:13px;white-space:nowrap}
+footer{border-top:1px solid var(--rule);padding:22px 0 40px;font-size:14px;color:var(--ink-3)}
+
+.hero.compact{grid-template-columns:minmax(0,1fr) 380px;padding-top:12px}
+.hero.compact h1{font-size:28px;max-width:none;margin-bottom:6px}.hero.compact .lede{display:none}
+.hero.compact .desk{margin-top:12px}
+@media (max-width:980px){.hero,.hero.compact{grid-template-columns:minmax(0,1fr)}.route{position:static}.hero aside{order:2}}
+@media (max-width:600px){.wrap{padding:0 16px}.desk textarea,.source .text{font-size:19px}.claim .body{margin-left:0}
+  .share .grid{grid-template-columns:minmax(0,1fr)}#status{margin-left:0;width:100%}.top nav{display:none}}
 </style>
 </head>
 <body>
-<header>
-  <h1>Claim <span>Check</span></h1>
-  <p>Paste a viral post. A team of open-weight models pulls out each claim, finds sources, re-runs the numbers and gives a cited verdict, all through Otari.</p>
-</header>
-<main>
-  <section>
-    <div id="banner"></div>
-    <div class="card">
-      <textarea id="post" maxlength="4000" placeholder="Paste a post or a link to an article, e.g. &quot;Crime in London is up 300% since 2019 and the Eiffel Tower is in Berlin.&quot;"></textarea>
-      <div class="row">
-        <button id="go">Check it</button>
-        <button class="ghost" id="sample">Try a sample</button>
-        <label title="Sends a request the primary provider rejects, so Otari's routing policy falls back"><input type="checkbox" id="outage"> Simulate provider failure</label>
-        <label id="vwrap" hidden title="Each volunteer has their own Otari key and monthly budget">Checking as <select id="volunteer"></select></label>
-        <span id="status"></span>
+<div class="wrap">
+  <header class="top">
+    <a class="mark" href="/" aria-label="Claim Check, home">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="9" width="28" height="15" rx="5" fill="#FFE68A" transform="rotate(-6 16 16)"/>
+        <path d="M9 17l4.5 4.5L23 11" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Claim Check</a>
+    <nav><a href="https://github.com/mukeshkbj/claim-check-ottari/tree/otari-hackathon">Source</a>
+      <a href="https://github.com/mukeshkbj/claim-check-ottari/blob/otari-hackathon/BENCHMARK.md">Accuracy</a>
+      <a href="https://github.com/mukeshkbj/claim-check-ottari/tree/otari-hackathon/extension/firefox">Firefox extension</a></nav>
+  </header>
+
+  <section class="hero" id="hero">
+    <div>
+      <div id="banner"></div>
+      <h1>Check a viral post before you share it.</h1>
+      <p class="lede">Paste a post, a link or a screenshot. Open-weight models from four different labs find each claim,
+        look for sources and vote on a verdict, so no single AI company decides what's true. Everything runs through Otari.</p>
+
+      <div class="desk">
+        <label class="sr" for="post">Post, claim or link to check</label>
+        <textarea id="post" maxlength="4000" placeholder="Paste a post, a claim or a link to an article"></textarea>
+        <div class="shotrow" id="shotrow" hidden><img id="shotprev" alt="Screenshot to check"><button class="linkbtn" id="shotclear">Remove screenshot</button></div>
+        <div class="controls">
+          <button class="btn btn-go" id="go">Check it</button>
+          <label class="btn btn-quiet btn-small filebtn">Add a screenshot<input type="file" id="shotfile" accept="image/png,image/jpeg,image/webp" class="sr"></label>
+          <button class="btn btn-quiet btn-small" id="sample">Try the example</button>
+          <span id="status" role="status" aria-live="polite"></span>
+        </div>
+        <details class="nets">
+          <summary>Test Otari's safety nets</summary>
+          <div class="row">
+            <label title="Sends a request the first provider rejects, so Otari's routing policy falls back to the next model"><input type="checkbox" id="outage"> Simulate a provider failure</label>
+            <label id="vwrap" hidden title="Each volunteer has their own Otari key and monthly budget">Check as <select id="volunteer"></select></label>
+          </div>
+          <p class="hint">Bob's monthly budget is tiny, so his checks stop once it runs out. You can also paste a screenshot with Ctrl+V.</p>
+        </details>
       </div>
-      <div class="shot">
-        <label class="ghost" style="padding:8px 12px;border-radius:8px;cursor:pointer;border:1px solid var(--line);color:var(--accent);font-weight:600">
-          📷 Add a screenshot<input type="file" id="shotfile" accept="image/png,image/jpeg,image/webp" hidden></label>
-        <span class="kind">or paste one (Ctrl+V) · read by open-weight Gemma 3 27B</span>
-        <img id="shotprev" hidden alt="Screenshot preview"><button class="linkbtn" id="shotclear" hidden>Remove</button>
+
+      <div class="example" id="example">
+        <p><mark class="hl v-Supported">UK inflation hit 11.1% in October 2022</mark>, the highest in 41 years.
+          <mark class="hl v-False">The Eiffel Tower is in Berlin.</mark> Honestly, <mark class="hl v-Opinion">this government is the worst ever</mark>.</p>
+        <div class="legend" aria-label="What the colours mean">
+          <span><i style="background:var(--mk-sup)"></i>Supported</span><span><i style="background:var(--mk-false)"></i>False</span>
+          <span><i style="background:var(--mk-mis)"></i>Misleading</span><span><i style="background:var(--mk-op)"></i>Opinion</span>
+          <span><i style="background:var(--mk-unk)"></i>Can't verify</span></div>
+        <p class="cap">What a check looks like: every claim is marked in the post, with sources and the jury's vote underneath.</p>
       </div>
-      <div class="hist" id="hist"></div>
+
+      <section class="results" id="results" hidden>
+        <section class="source" id="source" hidden><h2 id="sourceh">The post, marked up</h2><div class="text" id="sourcetext"></div><p class="from" id="sourcefrom" hidden></p></section>
+        <div id="claims"></div>
+        <div id="sharebox"></div>
+      </section>
+
+      <section class="hist" id="hist" hidden><h2>Your recent checks</h2><ol></ol></section>
     </div>
-    <div id="sharebox"></div>
-    <div id="claims"></div>
+
+    <aside class="route" id="route" aria-label="How Otari runs this check">
+      <h2>How Otari runs this check</h2>
+      <p class="sub" id="routesub">Each step lights up from Otari's real responses as the check runs.</p>
+      <ol class="stations" id="stations"></ol>
+      <div class="score"><b id="scoreN">0</b><span id="scoreL">of 8 Otari features used so far</span></div>
+      <div class="chips" id="chips"></div>
+      <details class="trace" id="tracebox"><summary>Every call through Otari</summary><div id="trace"><p class="step">Each model and tool call shows here.</p></div><div class="tot" id="total"></div></details>
+    </aside>
   </section>
-  <aside class="card">
-    <div class="fhead"><h2>Otari features in this check</h2><span id="fcount"></span></div>
-    <div class="feat" id="feat"></div>
-    <div class="subhead">Also used</div>
-    <div class="feat" id="feat2"></div>
-    <h2>Agent trace</h2>
-    <div id="trace"><div class="step m">Each model and tool call through Otari shows here.</div></div>
-    <div class="tot" id="total"></div>
-  </aside>
-</main>
+
+  <footer>Built for the Mozilla Otari hackathon. Open-weight models from OpenAI, Alibaba, NVIDIA, Google and Meta, through
+    <a href="https://otari.ai">Otari</a>. Verdicts can be wrong: read the sources before you share.</footer>
+</div>
+
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const SAMPLE = "BREAKING: UK inflation hit 11.1% in October 2022, the highest in 41 years. The Eiffel Tower is in Berlin. Honestly this government is the worst ever.";
-let cost = 0, steps = 0;
+const safeUrl = u => /^https?:\/\//i.test(u || "");
+const vcls = v => "v-" + String(v || "").replace(/[^A-Za-z]/g, "");
+// friendly model names: drop the provider path, Bedrock's region prefix and version suffix
+const short = m => String(m || "").split("/").pop().replace(/^(us|eu|apac)\.[a-z]+\./, "").replace(/-v\d+:\d+$/, "").replace(/^[a-z]+:/, "");
+const SAMPLE = "BREAKING: UK inflation hit 11.1% in October 2022, the highest in 41 years. The Eiffel Tower is in Berlin. Honestly, this government is the worst ever.";
+let shot = null, lastPost = "", lastVerdicts = {}, cost = 0, steps = 0, claimsById = {}, sourceText = "";
+
 fetch("/api/config").then(r => r.json()).then(c => {
   if (c.volunteers.length){ $("#vwrap").hidden = false;
-    // Default: the demo's own key. Volunteers are opt-in, to show per-user budgets.
     $("#volunteer").innerHTML = `<option value="">you (demo key)</option>` +
-      c.volunteers.map(v => `<option value="${esc(v)}">${esc(v)} (own budget)</option>`).join(""); }
+      c.volunteers.map(v => `<option value="${esc(v)}">${esc(v)} (own Otari key and budget)</option>`).join(""); }
 }).catch(() => {});
 
-// ---- Live feature panel: every tile is driven by real trace data from Otari responses
-const TILES = [
-  ["models","Open-weight models"],["roles","Distinct model roles"],["routing","Routing & fallback"],
-  ["search","Web search"],["mcp","MCP tools"],["guard","Guardrails"],
-  ["peruser","Per-user budget"],["budget","Budgets & spend"],["code","Code execution"]];
-let F;
-function resetF(){ F = {tier:null, session:null, reader:false, readerModel:null, memoryRan:false, memoryHits:0, page:null, judges:0, agreed:0, models:new Set(), roles:new Set(), policy:false, fell:null, searches:0, mcpAttached:false,
-  mcpCalls:[], guards:[], blocked:false, user:null, overBudget:false, numbersTried:false, numbersOk:false, spend:0}; renderF(); }
-// Friendly model names: drop the provider path and Bedrock's region/vendor prefix and version suffix
-const short = m => String(m || "").split("/").pop().replace(/^(us|eu|apac)\.[a-z]+\./, "").replace(/-v\d+:\d+$/, "").replace(/^[a-z]+:/, "");
-function tile(id, state, detail){ return [id, state, detail]; }
-function renderF(){
-  const t = {};
-  t.models = F.models.size ? tile("models", F.models.size >= 2 ? "on" : "idle", `${F.models.size}: ${[...F.models].map(short).join(", ")}`) : tile("models","","waiting");
-  t.roles = F.roles.size ? tile("roles", F.roles.size >= 2 ? "on" : "idle", [...F.roles].join(" · ")) : tile("roles","","waiting");
-  t.routing = F.fell ? tile("routing","warn",`fell back to ${short(F.fell)}`) : F.tier ? tile("routing","warn",`budget tier-down: judge on ${short(F.tier)}`) : F.policy ? tile("routing","on","via Otari policies (cc-*)") : tile("routing","","waiting");
-  t.search = F.searches ? tile("search","on",`${F.searches} search/fetch call(s)`) : tile("search","","waiting");
-  t.mcp = F.mcpCalls.length ? tile("mcp","on",[...new Set(F.mcpCalls.map(c => c.tool))].join(", ")) : F.mcpAttached ? tile("mcp","idle","attached · model didn't need it") : tile("mcp","","waiting");
-  t.guard = F.blocked ? tile("guard","bad","post blocked before any model") : F.guards.length ? tile("guard","on", F.guards.map(g => `${g.profile} ${g.valid ? "✓" : g.valid === false ? "✗" : "?"}`).join(", ")) : tile("guard","","waiting");
-  t.peruser = F.overBudget ? tile("peruser","bad",`${F.user || "key"}: limit reached`) : F.user ? tile("peruser","on",`${F.user}'s own key & budget`) : tile("peruser","","pick a volunteer");
-  t.budget = F.spend ? tile("budget","on",`$${F.spend.toFixed(4)} metered by Otari`) : tile("budget","","waiting");
-  t.code = F.numbersOk ? tile("code","on","numbers re-run in sandbox") : F.numbersTried ? tile("code","bad","didn't run this time (see trace)") : tile("code","","numeric claims only");
-  let lit = 0;
-  $("#feat").innerHTML = TILES.map(([id, label]) => { const [, st, d] = t[id]; if (st === "on" || st === "warn" || st === "bad" && id !== "code") lit++;
-    return `<div class="tile ${st}"><b>${label}</b>${esc(d)}</div>`; }).join("");
-  $("#fcount").textContent = `${lit} of 9 lit`;
-  const x = [
-    ["Otari sessions", F.session ? "on" : "", F.session ? `one session per check: ${F.session.slice(0, 22)}…` : "waiting"],
-    ["Screenshot reading", F.reader ? "on" : "", F.reader ? `read by ${short(F.readerModel)}` : "add a screenshot"],
-    ["Link reading (web fetch)", F.page ? "on" : "", F.page ? `read ${F.page}` : "paste a link"],
-    ["Second-opinion judge", F.judges ? (F.agreed === F.judges ? "on" : "warn") : "", F.judges ? `agreed on ${F.agreed} of ${F.judges}` : "waiting"],
-    ["Embeddings memory", F.memoryHits ? "on" : F.memoryRan ? "idle" : "", F.memoryHits ? `${F.memoryHits} claim(s) reused` : F.memoryRan ? "checked memory · nothing reused" : "waiting"]];
-  $("#feat2").innerHTML = x.map(([label, st, d]) => `<div class="tile ${st}"><b>${label}</b>${esc(d)}</div>`).join("");
+/* ---------- the Otari route: stations driven by real response data */
+const STATIONS = [
+  ["guard", "Safety check", "Guardrails"], ["read", "Read the screenshot or link", "Web fetch, vision"],
+  ["extract", "Find the claims", "Routing and fallback"], ["memory", "Check what's been checked", "Embeddings"],
+  ["research", "Look for sources", "Web search, MCP"], ["numbers", "Re-run the numbers", "Code execution"],
+  ["jury", "The jury votes", "Multiple models, distinct roles"], ["spend", "Keep spending in check", "Budgets"]];
+const RUBRIC = [["routing","Routing and fallbacks"],["mcp","MCP"],["search","Web search and fetch"],["code","Code execution"],
+  ["budget","Budgets"],["roles","Models in distinct roles"],["guard","Guardrails"],["peruser","Per-user budgets"]];
+let R;
+function resetRoute(){
+  R = {st:{}, det:{}, models:new Set(), roles:new Set(), searches:0, fetches:0, mcp:new Set(), mcpAttached:false, guards:null,
+       spend:0, user:null, over:false, fell:null, tier:null, policy:false, code:null, jurors:new Set(), memory:null, reused:0, used:{}};
+  renderRoute();
 }
-function featStep(s){
-  if (!s.error){ F.models.add(s.upstream_model || s.model_served || s.model_requested); F.roles.add(s.role); }
-  if (String(s.model_requested).startsWith("cc-")) F.policy = true;
-  if (s.fell_back) F.fell = s.upstream_model || s.model_served;
-  if (s.role === "judge" && /gpt-oss-20b/.test(s.upstream_model || "")) F.tier = s.upstream_model;  // cc-judge tiered down
-  F.searches += (s.tool_calls || []).filter(c => /web_(search|fetch)/.test(c.type || "")).length;
-  if (s.mcp && s.mcp.length) F.mcpAttached = true;
-  F.mcpCalls.push(...(s.mcp_calls || []));
-  if (s.guardrails && s.guardrails.length){ F.guards = s.guardrails;
-    // our guardrail service runs these open-weight models for Otari's guardrail hook
-    if (s.guardrails.some(g => g.valid !== null)){ F.models.add("Llama-Guard-4"); F.models.add("gpt-oss-safeguard-20b"); F.roles.add("guardrails"); } }
-  if (s.cost_usd) F.spend += s.cost_usd;
-  if (s.role === "reader" && !s.error){ F.reader = true; F.readerModel = s.upstream_model || s.model_served || s.model_requested; }
-  if (s.role === "memory" && !s.error) F.memoryRan = true;
-  if (s.role === "numbers"){ F.numbersTried = true; if (!s.error) F.numbersOk = true; }
-  renderF();
+function setSt(id, state, det){ R.st[id] = state; if (det != null) R.det[id] = det; }
+function renderRoute(){
+  $("#stations").innerHTML = STATIONS.map(([id, name, feat]) => {
+    const st = R.st[id] || "", det = R.det[id] || (id === "read" ? "Only for screenshots and links" : "Waiting");
+    return `<li class="st ${st}"><span class="dot" aria-hidden="true"></span><div><div class="name">${name}</div>
+      <div class="feat">${feat}</div><div class="det">${esc(det)}</div></div></li>`; }).join("");
+  const n = RUBRIC.filter(([k]) => R.used[k]).length;
+  $("#scoreN").textContent = n;
+  $("#scoreL").textContent = `of 8 Otari features used${n === 8 ? "" : " so far"}` + (R.models.size ? `, with ${R.models.size} open-weight models` : "");
+  $("#chips").innerHTML = RUBRIC.map(([k, label]) => `<span class="chip ${R.used[k] ? "on" : ""}">${label}</span>`).join("");
 }
-resetF();
-let shot = null, lastVerdicts = {}, lastPost = "";
+function onStep(s){
+  const model = s.upstream_model || s.model_served || s.model_requested;
+  if (!s.error && model && s.role !== "-"){ R.models.add(short(model)); R.roles.add(s.role); }
+  if (String(s.model_requested).startsWith("cc-")) R.policy = true;
+  if (s.cost_usd) R.spend += s.cost_usd;
+  const calls = s.tool_calls || [];
+  R.searches += calls.filter(c => /web_search/.test(c.type || "")).length;
+  R.fetches += calls.filter(c => /web_fetch/.test(c.type || "")).length;
+  if (s.mcp && s.mcp.length) R.mcpAttached = true;
+  (s.mcp_calls || []).forEach(c => R.mcp.add(c.tool));
+  if (s.guardrails && s.guardrails.length){ R.guards = s.guardrails;
+    if (s.guardrails.some(g => g.valid !== null)){ R.models.add("Llama-Guard-4"); R.models.add("gpt-oss-safeguard-20b"); R.roles.add("guardrails"); }
+    setSt("guard", s.guardrails.some(g => g.valid === false) ? "bad" : "done",
+      "Llama Guard 4 and gpt-oss-safeguard: " + s.guardrails.map(g => `${g.profile} ${g.valid === false ? "flagged" : g.valid ? "passed" : "no verdict"}`).join(", ")); }
+  switch (s.role){
+    case "reader": setSt("read", s.error ? "bad" : "done", s.error || `Screenshot read by ${short(model)}`); break;
+    case "fetcher": setSt("read", s.error ? "bad" : "done", s.error || `Otari web fetch, read by ${short(model)}`); break;
+    case "extractor":
+      if (s.fell_back){ R.fell = short(model); setSt("extract", "warn", `Policy ${s.model_requested}: first provider failed, fell back to ${short(model)} (attempt ${s.attempts})`); }
+      else setSt("extract", s.error ? "bad" : "done", s.error || `Policy ${s.model_requested}, served by ${short(model)}`);
+      if (!R.st.guard || R.st.guard === "run") setSt("guard", "skip", "No guardrail service on this server (it runs on the deployed demo)");
+      setSt("research", "run", "Starting"); break;
+    case "memory": setSt("memory", s.error ? "skip" : "done", s.error ? "Skipped" : `Embeddings by ${short(model)}, nothing reused yet`); break;
+    case "investigator": setSt("research", "run", `${R.searches} web searches${R.fetches ? `, ${R.fetches} page fetches` : ""}` +
+      (R.mcp.size ? `, MCP: ${[...R.mcp].join(", ")}` : R.mcpAttached ? ", MCP tools attached" : "")); break;
+    case "numbers": R.code = !s.error; setSt("numbers", s.error ? "bad" : "done", s.error ? "Didn't run this time (see the trace)" : `Sandbox run by ${short(model)}`); break;
+    case "judge": if (/gpt-oss-20b/.test(model || "")) R.tier = short(model);
+      R.jurors.add("OpenAI"); setSt("jury", "run", juryDet()); break;
+    case "juror": if (!s.error) R.jurors.add(labOf(model)); setSt("jury", "run", juryDet()); break;
+  }
+  if (R.searches || R.fetches) R.used.search = true;
+  if (R.mcp.size) R.used.mcp = true;
+  if (R.code) R.used.code = true;
+  if (R.guards && R.guards.some(g => g.valid !== null)) R.used.guard = true;
+  if (R.policy || R.fell) R.used.routing = true;
+  if (R.roles.size >= 3) R.used.roles = true;
+  if (R.spend > 0) R.used.budget = true;
+  if (R.user) R.used.peruser = true;
+  setSt("spend", R.over ? "bad" : R.spend ? "done" : "", R.over ? `${R.user || "This key"}: monthly budget used up` :
+    `$${R.spend.toFixed(4)} metered by Otari on ${R.user ? R.user + "'s own key and budget" : "the demo key's budget"}` +
+    (R.tier ? `; judge tiered down to ${R.tier}` : ""));
+  renderRoute();
+}
+const LABS = [["gpt-oss","OpenAI"],["qwen","Alibaba"],["nemotron","NVIDIA"],["gemma","Google"],["llama","Meta"],["mistral","Mistral AI"],["deepseek","DeepSeek"]];
+const labOf = m => (LABS.find(([k]) => String(m || "").toLowerCase().includes(k)) || [0, "Open-weight"])[1];
+const juryDet = () => `Votes from ${[...R.jurors].join(", ")}`;
+
+/* ---------- the post, marked up */
+function renderSource(text, claims){
+  sourceText = text || "";
+  if (!sourceText){ $("#source").hidden = true; return; }
+  const spans = claims.map((c, i) => ({c, i, s: c.span})).filter(x => Array.isArray(x.s)).sort((a, b) => a.s[0] - b.s[0]);
+  let out = "", at = 0;
+  for (const {c, i, s} of spans){
+    if (s[0] < at) continue;  // overlapping claims: mark the first
+    out += esc(sourceText.slice(at, s[0]));
+    out += `<mark class="hl pending" id="m-${esc(c.id)}"><a href="#claim-${esc(c.id)}">${esc(sourceText.slice(s[0], s[1]))}</a><sup>${i + 1}</sup></mark>`;
+    at = s[1];
+  }
+  out += esc(sourceText.slice(at));
+  $("#sourcetext").innerHTML = out;
+  $("#source").hidden = false;
+}
+function markState(id, cls){ const m = document.getElementById("m-" + id); if (!m) return;
+  m.className = "hl " + cls; if (cls.includes("v-")) { void m.offsetWidth; m.classList.add("landed"); } }
+
+/* ---------- claim dossiers */
+function claimCard(c, i){
+  claimsById[c.id] = c;
+  const d = document.createElement("article");
+  d.className = "claim"; d.id = "claim-" + c.id;
+  d.innerHTML = `<div class="head"><span class="num" aria-label="Claim ${i + 1}">${i + 1}</span><h3>${esc(c.text)}</h3></div>
+    <div class="body"><div class="vbox"><div class="wait"><span class="spin"></span>Waiting to be checked</div></div>
+    <div class="nm"></div><div class="ev"></div></div>`;
+  $("#claims").appendChild(d);
+  markState(c.id, c.checkable === false ? "pending" : "checking");
+}
+function benchHTML(r){
+  const j = r.jury; if (!j) return "";
+  const pres = `<div class="seat presiding"><div class="lab">OpenAI <span class="mdl">(presiding)</span></div><div class="mdl">gpt-oss-120b</div>
+    <span class="vote ${vcls(r.verdict)}">${esc(r.verdict)}</span></div>`;
+  const seats = j.votes.map(v => `<div class="seat ${v.agree ? "" : "dissent"}"><div class="lab">${esc(v.lab)}</div><div class="mdl">${esc(short(v.model))}</div>
+    <span class="vote ${vcls(v.verdict)}">${esc(v.verdict)}</span></div>`).join("") +
+    (j.absent || []).map(a => `<div class="seat absent"><div class="lab">${esc(a.lab)}</div><div class="mdl">${esc(short(a.model))}</div>
+    <span class="vote">Didn't vote</span></div>`).join("");
+  const n = j.total + 1, agreeing = j.agree + 1;
+  const tally = j.unanimous ? `<b>Unanimous.</b> All ${n} models, from ${n} labs, reached the same verdict.`
+    : j.contested ? `<b>Contested.</b> Only ${agreeing} of ${n} models agree with the presiding verdict, so treat it with care.`
+    : `<b>${agreeing} of ${n} agree.</b> The dissent is shown below.`;
+  const dis = j.votes.filter(v => !v.agree).map(v => `<li><b>${esc(v.lab)}</b> says ${esc(v.verdict)}: ${esc(v.explanation)}</li>`).join("");
+  return `<div class="bench"><p class="tally">${tally}</p><div class="seats">${pres}${seats}</div>${dis ? `<ul class="dissents">${dis}</ul>` : ""}</div>`;
+}
+function addStep(s){
+  if (steps++ === 0) $("#trace").innerHTML = "";
+  if (s.cost_usd) cost += s.cost_usd;
+  const tools = (s.tools || []).map(t => t.replace("otari_", "")).join(", ");
+  const tags = [s.fell_back ? `<span class="tag fb">fell back after ${s.attempts} attempts</span>` : "",
+    s.user ? `<span class="tag">key: ${esc(s.user)}</span>` : "",
+    s.mcp_calls && s.mcp_calls.length ? `<span class="tag">MCP: ${esc([...new Set(s.mcp_calls.map(c => c.tool))].join(", "))}</span>` : "",
+    s.guardrails && s.guardrails.length ? `<span class="tag">guardrails: ${s.guardrails.map(g => esc(g.profile) + (g.valid === false ? " flagged" : g.valid ? " passed" : " ?")).join(", ")}</span>` : ""].join("");
+  $("#trace").insertAdjacentHTML("beforeend", `<div class="step"><b>${esc(s.role)}</b> <span class="m">${esc(s.model_requested)}${s.upstream_model && s.upstream_model !== s.model_requested ? " served by " + esc(short(s.upstream_model)) : ""}${tools ? ", tools: " + esc(tools) : ""}</span>
+    <div class="m">${s.seconds}s, ${s.prompt_tokens + s.completion_tokens} tokens${s.cost_usd != null ? ", $" + s.cost_usd.toFixed(4) : ""}</div>${tags}
+    ${s.error ? `<div class="err">${esc(s.error)}</div>` : ""}</div>`);
+  $("#total").textContent = `${steps} calls through Otari, $${cost.toFixed(4)} in total`;
+}
+function setStatus(msg, spin){ $("#status").innerHTML = (spin ? '<span class="spin"></span>' : "") + esc(msg || ""); }
+
+function handle(ev){
+  const card = ev.claim_id && document.getElementById("claim-" + ev.claim_id);
+  const vbox = card && card.querySelector(".vbox");
+  switch (ev.type){
+    case "session": $("#routesub").textContent = `Otari session ${String(ev.id).slice(0, 22)}…, one per check.`; break;
+    case "user": R.user = ev.user; onStep({role:"-", tools:[], tool_calls:[]}); break;
+    case "status": setStatus(ev.message, true);
+      if (/safety|Pulling/i.test(ev.message)){ if (!R.st.guard) setSt("guard", "run", "Screening the post"); setSt("extract", "run", "Reading the post"); renderRoute(); }
+      if (/Reading the (page|screenshot)/i.test(ev.message)){ setSt("read", "run", ev.message); renderRoute(); }
+      if (vbox) vbox.innerHTML = `<div class="wait"><span class="spin"></span>${esc(ev.message)}</div>`;
+      if (/jury/i.test(ev.message)){ setSt("jury", "run", ev.message); renderRoute(); }
+      if (/numbers/i.test(ev.message)){ setSt("numbers", "run", "Running code in Otari's sandbox"); renderRoute(); }
+      break;
+    case "transcript": $("#sourceh").textContent = "The screenshot's text, marked up"; break;
+    case "page": $("#sourceh").textContent = "The article, marked up";
+      $("#sourcefrom").hidden = false;
+      $("#sourcefrom").innerHTML = `Read with Otari web fetch from ${safeUrl(ev.url) ? `<a href="${esc(ev.url)}" target="_blank" rel="noopener noreferrer">${esc(ev.title || ev.url)}</a>` : esc(ev.title)}`; break;
+    case "source": sourceText = ev.text || ""; break;
+    case "claims": renderSource(sourceText, ev.claims); ev.claims.forEach(claimCard);
+      if (!ev.claims.some(c => c.checkable !== false)){ setSt("research", "skip", "Nothing checkable"); renderRoute(); } break;
+    case "step": addStep(ev.step); onStep(ev.step); break;
+    case "evidence": if (!card) break;
+      card.querySelector(".ev").innerHTML = (ev.research.evidence || []).map(e =>
+        `<div class="src ${esc(e.stance)}"><div>${safeUrl(e.url) ? `<a href="${esc(e.url)}" target="_blank" rel="noopener noreferrer">${esc(e.title || e.url)}</a>` : esc(e.title || "Source")}
+         ${e.publisher ? `<span class="pub">${esc(e.publisher)}</span>` : ""}${e.verified_url === false ? ` <span class="unv">(not among the pages Otari retrieved)</span>` : ""}
+         ${e.quote ? `<q>${esc(e.quote)}</q>` : ""}</div></div>`).join("") || `<p class="truth">${esc(ev.research.summary)}</p>`;
+      if (ev.cached){ R.reused++; setSt("memory", "done", `${R.reused} claim(s) reused from a recent check`); renderRoute(); }
+      break;
+    case "numbers": if (!card) break; { const n = ev.numbers;
+      card.querySelector(".nm").innerHTML = n.applicable
+        ? `<div class="nums"><b>Numbers re-run in Otari's sandbox:</b> ${esc(n.computation)} = <b>${esc(n.result)}</b> (the post says ${esc(n.claimed)}), ${n.consistent ? "consistent" : "doesn't match"}${n.code ? `<code>${esc(n.code)}</code>` : ""}</div>`
+        : `<div class="nums">${esc(n.note)}</div>`; } break;
+    case "verdict": { const r = ev.result; if (!vbox) break;
+      lastVerdicts[ev.claim_id] = r.verdict;
+      vbox.innerHTML = `<div class="vline"><span class="vword ${vcls(r.verdict)}">${esc(r.verdict)}</span>${r.confidence && r.confidence !== "n/a" ? `<span class="conf">${esc(r.confidence)} confidence</span>` : ""}</div>
+        ${ev.cached ? `<div class="cached">Checked ${esc(ev.cached.age_hours)} hours ago as “${esc(ev.cached.matched)}”. The verdict is reused, so no new searches ran.</div>` : ""}
+        <p class="expl">${esc(r.explanation)}</p>${r.what_is_true ? `<p class="truth">What's true: ${esc(r.what_is_true)}</p>` : ""}${benchHTML(r)}`;
+      markState(ev.claim_id, vcls(r.verdict));
+      if (r.jury){ setSt("jury", "done", `${r.jury.total + 1} labs voted: ${["OpenAI", ...r.jury.votes.map(v => v.lab)].join(", ")}`); R.used.roles = true; renderRoute(); }
+      break; }
+    case "error": (vbox || $("#claims")).insertAdjacentHTML("beforeend", `<p class="err">${esc(ev.message)}</p>`); break;
+    case "blocked": setSt("guard", "bad", "Blocked before any model saw the post"); R.used.guard = true; renderRoute();
+      $("#claims").insertAdjacentHTML("beforeend", `<div class="stop"><h3>Blocked by Otari's guardrails</h3><p>This post was stopped before it reached any model. ${esc(ev.message)}</p></div>`);
+      setStatus("Blocked"); break;
+    case "budget": R.over = true; onStep({role:"-", tools:[], tool_calls:[]});
+      (vbox || $("#claims")).insertAdjacentHTML("beforeend", `<div class="stop"><h3>Budget reached</h3><p>Otari stopped this check because the key's monthly budget is used up. ${esc(ev.message)}</p></div>`);
+      setStatus("Budget reached"); break;
+    case "done": setStatus("Done");
+      ["research", "jury", "memory"].forEach(k => { if (R.st[k] === "run") setSt(k, "done"); }); renderRoute(); break;
+    case "report": showShare(ev.id); break;
+  }
+}
+
+/* ---------- share + reply + history */
+function getHistory(){ try { return JSON.parse(localStorage.getItem("cc-history") || "[]"); } catch { return []; } }
+function renderHistory(){
+  const h = getHistory(); $("#hist").hidden = !h.length;
+  $("#hist ol").innerHTML = h.slice(0, 6).map(x => `<li><a href="/r/${esc(x.id)}">${esc(x.text)}</a><span>${esc(x.summary)}</span></li>`).join("");
+}
+function showShare(id, fromShared){
+  const link = `${location.origin}/r/${id}`;
+  $("#sharebox").innerHTML = `<section class="share"><h2>Share this check</h2><p>Anyone with the link sees the verdicts, the jury's votes and the sources.</p>
+    <div class="linkrow"><input id="sharelink" value="${esc(link)}" readonly aria-label="Link to this check"><button class="btn btn-quiet btn-small" id="copylink">Copy link</button></div>
+    <div class="grid"><img class="cardimg" src="/r/${esc(id)}/card.png" alt="The preview shown when the link is shared" onerror="this.remove()">
+    <div><button class="btn btn-quiet btn-small" id="replybtn">Draft a calm reply</button>
+      <p class="quietline">A short, friendly reply with sources, to post under the original. Written by Gemma 3 27B.</p><div id="replyout"></div></div></div></section>`;
+  $("#copylink").onclick = () => { navigator.clipboard?.writeText(link); $("#copylink").textContent = "Copied"; };
+  $("#replybtn").onclick = async () => {
+    const b = $("#replybtn"); b.disabled = true; b.textContent = "Drafting…";
+    try {
+      const res = await fetch("/api/reply", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({report_id: id})});
+      const j = await res.json();
+      if (!res.ok) throw new Error(typeof j.detail === "string" ? j.detail : "Error " + res.status);
+      if (j.step && !fromShared){ addStep(j.step); onStep(j.step); }
+      $("#replyout").innerHTML = `<div class="reply" id="replytext">${esc(j.reply)}</div>
+        <div class="controls" style="border:0;padding-top:8px"><button class="btn btn-quiet btn-small" id="copyreply">Copy reply</button><span class="quietline">Read it before you post.</span></div>`;
+      $("#copyreply").onclick = () => { navigator.clipboard?.writeText(j.reply); $("#copyreply").textContent = "Copied"; };
+      b.textContent = "Reply drafted";
+    } catch (e) { $("#replyout").innerHTML = `<p class="err">${esc(e.message)}</p>`; b.disabled = false; b.textContent = "Draft a calm reply"; }
+  };
+  if (fromShared) return;
+  try { const h = getHistory().filter(x => x.id !== id);
+    h.unshift({id, text: (lastPost || "(screenshot)").slice(0, 140), summary: Object.values(lastVerdicts).join(", "), ts: Date.now()});
+    localStorage.setItem("cc-history", JSON.stringify(h.slice(0, 20))); } catch {}
+  renderHistory();
+}
+
+/* ---------- layout: the route panel moves beside the results once a check starts */
+function enterResults(){
+  $("#results").hidden = false; $("#example").hidden = true; $("#hero").classList.add("compact");
+  $("#claims").innerHTML = ""; $("#sharebox").innerHTML = ""; $("#source").hidden = true; $("#sourcefrom").hidden = true;
+  $("#sourceh").textContent = "The post, marked up"; $("#trace").innerHTML = ""; $("#total").textContent = "";
+  cost = 0; steps = 0; claimsById = {}; sourceText = ""; resetRoute();
+}
+
+/* ---------- screenshots: resized in the browser to stay small */
 async function loadShot(file){
   if (!file || !/^image\/(png|jpeg|webp)$/.test(file.type)) return;
   const img = new Image(), url = URL.createObjectURL(file);
@@ -173,146 +529,49 @@ async function loadShot(file){
   c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
   c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
   shot = c.toDataURL("image/jpeg", 0.88); URL.revokeObjectURL(url);
-  $("#shotprev").src = shot; $("#shotprev").hidden = false; $("#shotclear").hidden = false;
+  $("#shotprev").src = shot; $("#shotrow").hidden = false;
 }
 $("#shotfile").onchange = e => loadShot(e.target.files[0]);
-$("#shotclear").onclick = () => { shot = null; $("#shotprev").hidden = true; $("#shotclear").hidden = true; $("#shotfile").value = ""; };
+$("#shotclear").onclick = () => { shot = null; $("#shotrow").hidden = true; $("#shotfile").value = ""; };
 document.addEventListener("paste", e => { const it = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith("image/")); if (it) loadShot(it.getAsFile()); });
 
-function getHistory(){ try { return JSON.parse(localStorage.getItem("cc-history") || "[]"); } catch { return []; } }
-function renderHistory(){
-  const h = getHistory(); $("#hist").innerHTML = h.length ? `<div class="kind" style="border:0">Your recent checks</div>` + h.slice(0, 6).map(x =>
-    `<div><a href="/r/${esc(x.id)}">${esc(x.text.slice(0, 80))}${x.text.length > 80 ? "…" : ""}</a> <span class="kind">${esc(x.summary)}</span></div>`).join("") : "";
-}
-function secondLine(o){
-  if (!o) return "";
-  return o.agree
-    ? `<div class="second">✓ Second opinion from ${esc(short(o.model))} agrees: ${esc(o.verdict)}</div>`
-    : `<div class="second dis">⚠ The two judges disagree. ${esc(short(o.model))} says <b>${esc(o.verdict)}</b>: ${esc(o.explanation)}</div>`;
-}
-function showShare(id, fromShared){
-  const link = `${location.origin}/r/${id}`;
-  $("#sharebox").innerHTML = `<div class="card claim"><b>Share this report</b> <span class="kind">anyone with the link sees these verdicts and sources</span>
-    <div class="row"><input id="sharelink" value="${esc(link)}" readonly style="flex:1;min-width:0;font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)">
-    <button class="ghost" id="copylink">Copy link</button></div>
-    <img class="cardimg" src="/r/${esc(id)}/card.png" alt="Preview card shown when this link is shared" onerror="this.remove()">
-    <div class="row" style="margin-top:10px"><button class="ghost" id="replybtn">✍ Draft a calm reply</button>
-      <span class="kind">a short, friendly reply with sources you could post under the original</span></div>
-    <div id="replyout"></div></div>`;
-  $("#copylink").onclick = () => { navigator.clipboard?.writeText(link); $("#copylink").textContent = "Copied ✓"; };
-  $("#replybtn").onclick = async () => {
-    const b = $("#replybtn"); b.disabled = true; b.innerHTML = '<span class="spin"></span>Drafting…';
-    try {
-      const res = await fetch("/api/reply", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({report_id: id})});
-      const j = await res.json();
-      if (!res.ok) throw new Error(typeof j.detail === "string" ? j.detail : "Error " + res.status);
-      if (j.step && !fromShared){ addStep(j.step); featStep(j.step); }
-      $("#replyout").innerHTML = `<div class="reply" id="replytext">${esc(j.reply)}</div>
-        <div class="row" style="margin-top:6px"><button class="ghost" id="copyreply">Copy reply</button>
-        <span class="kind">drafted by ${esc(short(j.step?.upstream_model || j.step?.model_requested))} · read it before you post</span></div>`;
-      $("#copyreply").onclick = () => { navigator.clipboard?.writeText(j.reply); $("#copyreply").textContent = "Copied ✓"; };
-      b.textContent = "✍ Reply drafted";
-    } catch (e) { $("#replyout").innerHTML = `<p class="err">${esc(e.message)}</p>`; b.disabled = false; b.textContent = "✍ Draft a calm reply"; }
-  };
-  if (fromShared) return;
-  try { const h = getHistory().filter(x => x.id !== id);
-    h.unshift({id, text: lastPost || "(screenshot)", summary: Object.values(lastVerdicts).join(" · "), ts: Date.now()});
-    localStorage.setItem("cc-history", JSON.stringify(h.slice(0, 20))); } catch {}
-  renderHistory();
-}
-renderHistory();
-const shared = location.pathname.match(/^\/r\/([a-f0-9]{8,32})$/);
-if (shared){
-  fetch(`/api/reports/${shared[1]}`).then(r => r.ok ? r.json() : Promise.reject(r.status)).then(rep => {
-    $("#banner").innerHTML = `<div class="banner">Shared Claim Check report · checked ${esc(new Date(rep.created * 1000).toLocaleString())}. <a href="/">Check something else</a></div>`;
-    $("#post").value = rep.post; resetF(); $("#claims").innerHTML = ""; $("#trace").innerHTML = ""; cost = 0; steps = 0;
-    rep.events.forEach(handle); $("#status").textContent = "Shared report"; showShare(shared[1], true);
-  }).catch(() => { $("#banner").innerHTML = `<div class="banner">This shared report isn't available any more (reports are kept while the demo server runs). <a href="/">Run a new check</a></div>`; });
-}
-$("#sample").onclick = () => { $("#post").value = SAMPLE; };
-$("#go").onclick = check;
-const params = new URLSearchParams(location.search);
-if (params.get("q")) {  // prefill only: a link should never spend money on its own
-  $("#post").value = params.get("q").slice(0, 4000);
-  const b = $("#go"); if (b) { b.focus(); b.classList.add("pulse"); }
-}
-
-function claimCard(c){
-  const d = document.createElement("div");
-  d.className = "card claim"; d.id = "claim-" + c.id;
-  d.innerHTML = `<div class="kind">${esc(c.kind)}</div><h3>${esc(c.text)}</h3>
-    <div class="body"><span class="verdict v-pending"><span class="spin"></span>Checking</span></div>
-    <div class="ev"></div><div class="nm"></div>`;
-  $("#claims").appendChild(d);
-}
-function addStep(s){
-  if (steps++ === 0) $("#trace").innerHTML = "";
-  if (s.cost_usd) cost += s.cost_usd;
-  const tools = s.tools.length ? " · " + s.tools.map(t => t.replace("otari_","")).join(", ") : "";
-  const calls = s.tool_calls.length ? ` · ${s.tool_calls.length} tool call(s)` : "";
-  const mcp = s.mcp && s.mcp.length ? `<span class="badge">MCP: ${esc(s.mcp.join(", "))}</span>` : "";
-  const gr = s.guardrails && s.guardrails.length ? `<span class="badge">guardrails: ${s.guardrails.map(g => esc(g.profile) + (g.valid === false ? " ✗" : g.valid ? " ✓" : " ?")).join(", ")}</span>` : "";
-  const fbinfo = s.fell_back ? ` → served by ${esc(s.upstream_model || s.model_served)} after ${s.attempts} attempt(s)` : "";
-  const who = s.user ? `<span class="badge">user: ${esc(s.user)}</span>` : "";
-  $("#trace").insertAdjacentHTML("beforeend", `<div class="step"><b>${esc(s.role)}</b>
-    ${s.fell_back ? '<span class="fb"> fallback</span>' : ""}${who}<br><span class="m">${esc(s.model_requested)}${fbinfo}${esc(tools)}${esc(calls)}</span>${mcp}${gr}<br>
-    <span class="m">${s.seconds}s · ${s.prompt_tokens + s.completion_tokens} tokens${s.cost_usd != null ? " · $" + s.cost_usd.toFixed(4) : ""}</span>
-    ${s.error ? `<br><span class="err">${esc(s.error)}</span>` : ""}</div>`);
-  $("#total").textContent = `${steps} calls · $${cost.toFixed(4)} total`;
-}
-function handle(ev){
-  const card = ev.claim_id && $("#claim-" + ev.claim_id);
-  switch (ev.type){
-    case "status": $("#status").innerHTML = '<span class="spin"></span>' + esc(ev.message); if (card) card.querySelector(".body").innerHTML = `<span class="verdict v-pending"><span class="spin"></span>${esc(ev.message)}</span>`; break;
-    case "claims": ev.claims.forEach(claimCard); break;
-    case "step": addStep(ev.step); featStep(ev.step); break;
-    case "user": F.user = ev.user; renderF(); break;
-    case "session": F.session = ev.id; renderF(); break;
-    case "transcript": $("#claims").insertAdjacentHTML("beforeend", `<div class="card claim"><div class="kind">Read from the screenshot</div><div class="transcript">${esc(ev.text || "(no text found)")}</div></div>`); break;
-    case "report": showShare(ev.id); break;
-    case "page": { let host = ""; try { host = new URL(ev.url).hostname; } catch {}
-      F.page = host || "page"; renderF();
-      $("#claims").insertAdjacentHTML("beforeend", `<div class="card claim"><div class="kind">Read from the link with Otari web fetch</div>
-        <b>${/^https?:\/\//i.test(ev.url) ? `<a href="${esc(ev.url)}" target="_blank" rel="noopener noreferrer">${esc(ev.title || ev.url)}</a>` : esc(ev.title)}</b>
-        <div class="transcript">${esc(ev.excerpt)}${ev.excerpt && ev.excerpt.length >= 700 ? "…" : ""}</div></div>`); break; }
-    case "evidence": card.querySelector(".ev").innerHTML = (ev.research.evidence || []).map(e =>
-      `<div class="src ${esc(e.stance)}">${/^https?:\/\//i.test(e.url || "") ? `<a href="${esc(e.url)}" target="_blank" rel="noopener noreferrer">${esc(e.title || e.url)}</a>` : esc(e.title || e.url || "source")}
-       ${e.publisher ? " · " + esc(e.publisher) : ""}<br><q>${esc(e.quote)}</q></div>`).join("") || `<div class="src">${esc(ev.research.summary)}</div>`; break;
-    case "numbers": { const n = ev.numbers; card.querySelector(".nm").innerHTML = n.applicable
-      ? `<div class="nums"><b>Numbers check:</b> ${esc(n.computation)} = <b>${esc(n.result)}</b> (claimed ${esc(n.claimed)}) ${n.consistent ? "✓ consistent" : "✗ doesn't match"}<code>${esc(n.code)}</code></div>`
-      : `<div class="nums">${esc(n.note)}</div>`; break; }
-    case "verdict": { const r = ev.result, v = (r.verdict || "").replace(/[^A-Za-z]/g,"");
-      if (ev.cached){ F.memoryHits++; renderF(); }
-      lastVerdicts[ev.claim_id] = r.verdict;
-      card.querySelector(".body").innerHTML = `<span class="verdict v-${v}">${esc(r.verdict)}</span><span class="kind">${esc(r.confidence)} confidence</span>
-        ${ev.cached ? `<div class="cached">♻ Already checked ${esc(ev.cached.age_hours)} h ago, matched “${esc(ev.cached.matched)}” (similarity ${esc(ev.cached.similarity)}). Verdict reused, no new searches.</div>` : ""}
-        <p class="expl">${esc(r.explanation)}</p>${r.what_is_true ? `<p class="true">What's true: ${esc(r.what_is_true)}</p>` : ""}
-        ${secondLine(r.second_opinion)}`;
-      if (r.second_opinion){ F.judges++; if (r.second_opinion.agree) F.agreed++; renderF(); } break; }
-    case "error": (card ? card.querySelector(".body") : $("#claims")).insertAdjacentHTML("beforeend", `<p class="err">${esc(ev.message)}</p>`); break;
-    case "blocked": F.blocked = true; renderF(); $("#claims").insertAdjacentHTML("beforeend", `<div class="card claim blocked"><b>Blocked by guardrail</b><p class="expl">This post was stopped before reaching any model. ${esc(ev.message)}</p></div>`); $("#status").textContent = "Blocked"; break;
-    case "budget": F.overBudget = true; renderF(); (card ? card.querySelector(".body") : $("#claims")).insertAdjacentHTML("beforeend", card
-      ? `<p class="err"><b>Budget reached.</b> ${esc(ev.message)}</p>`
-      : `<div class="card claim blocked"><b>Budget reached</b><p class="expl">${esc(ev.message)}</p></div>`); $("#status").textContent = "Budget reached"; break;
-    case "done": $("#status").textContent = "Done"; break;
-  }
-}
 async function check(){
-  const post = $("#post").value.trim(); if (post.length < 10 && !shot) { $("#status").textContent = "Paste a post or add a screenshot"; return; }
-  lastPost = post || "(screenshot)"; lastVerdicts = {}; $("#sharebox").innerHTML = ""; $("#banner").innerHTML = "";
+  const post = $("#post").value.trim();
+  if (post.length < 10 && !shot){ setStatus("Paste a post, a claim or a link (10 characters or more), or add a screenshot."); return; }
+  lastPost = post || "(screenshot)"; lastVerdicts = {}; $("#banner").innerHTML = "";
   if (location.pathname !== "/") window.history.replaceState(null, "", "/");
-  $("#go").disabled = true; $("#claims").innerHTML = ""; $("#trace").innerHTML = ""; $("#total").textContent = ""; cost = 0; steps = 0; resetF();
+  enterResults(); $("#go").disabled = true; setStatus("Starting (the free server can take up to a minute to wake up)", true);
   try {
-    const res = await fetch("/api/check", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({post, image: shot, volunteer: $("#vwrap").hidden ? null : ($("#volunteer").value || null), simulate_outage: $("#outage").checked})});
-    if (!res.ok) { let m = "Error " + res.status; try { const j = await res.json(); if (j.detail) m = typeof j.detail === "string" ? j.detail : m; } catch (_) {}
-      $("#status").textContent = m; return; }
+    const res = await fetch("/api/check", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({post, image: shot, volunteer: $("#vwrap").hidden ? null : ($("#volunteer").value || null), simulate_outage: $("#outage").checked})});
+    if (!res.ok){ let m = "Error " + res.status; try { const j = await res.json(); if (typeof j.detail === "string") m = j.detail; } catch {}
+      setStatus(m); return; }
     const reader = res.body.getReader(), dec = new TextDecoder(); let buf = "";
     for (;;){ const {value, done} = await reader.read(); if (done) break;
       buf += dec.decode(value, {stream:true}); let i;
       while ((i = buf.indexOf("\n\n")) >= 0){ const line = buf.slice(0, i); buf = buf.slice(i + 2);
         if (line.startsWith("data: ")) handle(JSON.parse(line.slice(6))); } }
-  } catch (e) { $("#status").textContent = "Error: " + e.message; }
+  } catch (e) { setStatus("The connection dropped: " + e.message + ". Try again."); }
   finally { $("#go").disabled = false; }
+}
+$("#go").onclick = check;
+$("#post").addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) check(); });
+$("#sample").onclick = () => { $("#post").value = SAMPLE; $("#post").focus(); };
+document.addEventListener("click", e => { const a = e.target.closest('mark.hl a'); if (!a) return;
+  const c = document.querySelector(a.getAttribute("href")); if (!c) return;
+  document.querySelectorAll(".claim.focus").forEach(x => x.classList.remove("focus")); c.classList.add("focus"); });
+
+resetRoute(); renderHistory();
+const params = new URLSearchParams(location.search);
+if (params.get("q")){ $("#post").value = params.get("q").slice(0, 4000); $("#go").focus(); $("#go").classList.add("pulse"); }  // prefill only: a link never starts a paid check
+const shared = location.pathname.match(/^\/r\/([a-f0-9]{8,32})$/);
+if (shared){
+  fetch(`/api/reports/${shared[1]}`).then(r => r.ok ? r.json() : Promise.reject(r.status)).then(rep => {
+    enterResults();
+    $("#post").value = rep.post; lastPost = rep.post;
+    $("#banner").innerHTML = `<div class="banner">A shared check from ${esc(new Date(rep.created * 1000).toLocaleString())}. <a href="/">Check something else</a></div>`;
+    rep.events.forEach(handle); setStatus("Shared check"); showShare(shared[1], true);
+  }).catch(() => { $("#banner").innerHTML = `<div class="banner">This shared check isn't available any more: the demo server keeps checks until it restarts. <a href="/">Run a new check</a></div>`; });
 }
 </script>
 </body>
