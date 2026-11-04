@@ -85,3 +85,31 @@ def test_rewrite_never_drops_the_posts_numbers():
     assert agents.keep_numbers("UK inflation hit 11.1% in October 2022", "UK inflation hit 11.1% in October 2022") \
         == "UK inflation hit 11.1% in October 2022"
     assert agents.keep_numbers("Crime rose", "300%") == "Crime rose (300)"
+
+
+def test_sandbox_rerun_confirms_or_flags_the_agents_result():
+    import asyncio
+    from claimcheck.otari import Step
+
+    class C:
+        def __init__(self, stdout): self.stdout = stdout
+        async def execute_code(self, code):
+            return {"stdout": self.stdout, "return_code": 0}, Step(role="sandbox re-run", model_requested="otari_code_execution")
+    nums = {"applicable": True, "code": "print((1648-412)/412*100)", "result": "300%"}
+    assert asyncio.run(agents.rerun_numbers(C("300.0\n"), nums))[0]["matches"] is True
+    assert asyncio.run(agents.rerun_numbers(C("1,234.5\n"), nums))[0]["matches"] is False
+    assert asyncio.run(agents.rerun_numbers(C("x"), {"applicable": False}))[0] is None
+
+
+def test_ledger_reconciles_priced_calls_and_counts_unpriced_ones():
+    import asyncio
+    from claimcheck import pipeline
+
+    class C:
+        bills = {"a": "0.010000", "b": "0.002000", "c": "0.010000"}
+        async def receipt(self, rid): return {"cost_usd": self.bills[rid]}
+    events = [{"type": "step", "step": {"request_id": "a", "cost_usd": 0.01}},
+              {"type": "step", "step": {"request_id": "b", "cost_usd": 0.002}},
+              {"type": "step", "step": {"request_id": "c", "cost_usd": None}}]   # e.g. a sandbox re-run
+    led = asyncio.run(pipeline._ledger(C(), events))
+    assert (led["found"], led["billed_usd"], led["streamed_usd"], led["unpriced_in_stream"], led["matches"]) == (3, 0.022, 0.012, 1, True)

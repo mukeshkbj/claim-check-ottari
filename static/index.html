@@ -145,6 +145,8 @@ select{padding:6px 10px;border-radius:var(--r-s);border:1px solid var(--rule-2);
 .src .unv{font-size:12px;color:var(--ink-3)}
 .nums{margin-top:12px;font-size:15px;background:var(--paper);border-radius:var(--r-s);padding:10px 12px;overflow-wrap:anywhere}
 .nums code{display:block;white-space:pre-wrap;font-size:13px;color:var(--ink-2);margin-top:6px}
+.rerun{margin-top:8px;padding-top:8px;border-top:1px solid var(--rule);font-size:14px;color:var(--ink-2)}
+.rerun.ok{color:var(--tx-sup)}.rerun.bad{color:var(--tx-false)}
 .err{color:var(--tx-false);overflow-wrap:anywhere}
 .stop{background:var(--sheet);border:2px solid var(--tx-false);border-radius:var(--r-m);padding:18px 20px;margin-bottom:14px}
 .stop h3{margin:0 0 4px;font-size:18px;color:var(--tx-false)}
@@ -331,7 +333,8 @@ function onStep(s){
   if (s.guardrails && s.guardrails.length){ R.guards = s.guardrails;
     if (s.guardrails.some(g => g.valid !== null)){ R.models.add("Llama-Guard-4"); R.models.add("gpt-oss-safeguard-20b"); R.roles.add("guardrails"); }
     setSt("guard", s.guardrails.some(g => g.valid === false) ? "bad" : "done",
-      "Llama Guard 4 and gpt-oss-safeguard: " + s.guardrails.map(g => `${g.profile} ${g.valid === false ? "flagged" : g.valid ? "passed" : "no verdict"}`).join(", ")); }
+      "Llama Guard 4 and gpt-oss-safeguard: " + s.guardrails.map(g => `${g.profile} ${g.valid === false ? "flagged" : g.valid ? "passed"
+        : g.status ? `no verdict (${String(g.reason || g.status).replace(/_/g, " ")})` : "no verdict"}`).join(", ")); }
   switch (s.role){
     case "reader": setSt("read", s.error ? "bad" : "done", s.error || `Screenshot read by ${short(model)}`); break;
     case "fetcher": setSt("read", s.error ? "bad" : "done", s.error || `Otari web fetch, read by ${short(model)}`); break;
@@ -344,6 +347,8 @@ function onStep(s){
     case "investigator": setSt("research", "run", `${R.searches} web searches${R.fetches ? `, ${R.fetches} page fetches` : ""}` +
       (R.mcp.size ? `, MCP: ${[...R.mcp].join(", ")}` : R.mcpAttached ? ", MCP tools attached" : "")); break;
     case "numbers": R.code = !s.error; setSt("numbers", s.error ? "bad" : "done", s.error ? "Didn't run this time (see the trace)" : `Sandbox run by ${short(model)}`); break;
+    case "sandbox re-run": if (!s.error){ R.code = true; R.reruns = (R.reruns || 0) + 1;
+      setSt("numbers", "done", `Agent's code re-run directly in Otari's sandbox (${R.reruns}x), no model in the loop`); } break;
     case "judge": if (/gpt-oss-20b/.test(model || "")) R.tier = short(model);
       R.jurors.add("OpenAI"); setSt("jury", "run", juryDet()); break;
     case "juror": if (!s.error) R.jurors.add(labOf(model)); setSt("jury", "run", juryDet()); break;
@@ -456,7 +461,10 @@ function handle(ev){
     case "numbers": if (!card) break; { const n = ev.numbers;
       card.querySelector(".nm").innerHTML = n.applicable
         ? `<div class="nums"><b>Numbers re-run in Otari's sandbox:</b> ${esc(n.computation)} = <b>${esc(n.result)}</b> (the post says ${esc(n.claimed)}), ${n.consistent ? "consistent" : "doesn't match"}${n.code ? `<code>${esc(n.code)}</code>` : ""}</div>`
-        : `<div class="nums">${esc(n.note)}</div>`; } break;
+        : `<div class="nums">${esc(n.note)}</div>`;
+      if (n.rerun){ const rr = n.rerun; card.querySelector(".nums").insertAdjacentHTML("beforeend", rr.ran
+        ? `<div class="rerun ${rr.matches ? "ok" : "bad"}">Re-run with no model in the loop (Otari <code style="display:inline">/code/execute</code>): printed ${esc(rr.stdout.trim().slice(0, 60))}, ${rr.matches ? "the same result" : "not the result the agent reported"}</div>`
+        : `<div class="rerun">${esc(rr.note)}</div>`); } } break;
     case "verdict": { const r = ev.result; if (!vbox) break;
       lastVerdicts[ev.claim_id] = r.verdict;
       vbox.innerHTML = `<div class="vline"><span class="vword ${vcls(r.verdict)}">${esc(r.verdict)}</span>${r.confidence && r.confidence !== "n/a" ? `<span class="conf">${esc(r.confidence)} confidence</span>` : ""}</div>
@@ -475,6 +483,8 @@ function handle(ev){
     case "done": setStatus("Done");
       ["research", "jury", "memory"].forEach(k => { if (R.st[k] === "run") setSt(k, "done"); }); renderRoute(); break;
     case "report": showShare(ev.id); break;
+    case "ledger": setSt("spend", R.over ? "bad" : "done", (R.det.spend || "") + `. Otari's ledger billed $${Number(ev.billed_usd).toFixed(4)} for ${ev.found} of ${ev.requests} requests` +
+      (ev.matches ? ", matching every priced call to the micro-dollar" : "")); renderRoute(); break;
   }
 }
 

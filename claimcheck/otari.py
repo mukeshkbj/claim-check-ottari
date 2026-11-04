@@ -38,6 +38,7 @@ class Step:
     mcp: list[str] = field(default_factory=list)
     mcp_calls: list[dict] = field(default_factory=list)
     user: str | None = None
+    request_id: str = ""  # Otari-Request-ID: finds this call's billed cost in Otari's ledger
 
     @property
     def fell_back(self) -> bool:
@@ -52,14 +53,16 @@ class Step:
 
 class Otari:
     def __init__(self, api_key: str | None = None, base_url: str | None = None, user: str | None = None,
-                 session: str | None = None):
+                 session: str | None = None, tags: dict[str, str] | None = None):
         self.api_key = api_key or config.API_KEY
         self.base_url = (base_url or config.BASE_URL).rstrip("/")
         self.user = user
         self.session = session
         # One Otari session per check: every call carries the same Otari-Conversation-Id, so the whole
         # check shows up as a single session (turns, steps, tools, cost) in Otari's Sessions view.
-        headers = {"User-Agent": "claim-check/0.3"}
+        # Request tags (OpenAI's `metadata`) attribute every call's spend to this app, this check and the role.
+        self.tags = {k: str(v)[:512] for k, v in (tags or {}).items() if v is not None}
+        headers = {"User-Agent": "claim-check/0.4"}
         if session:
             headers["Otari-Conversation-Id"] = session
         self._http = httpx.AsyncClient(timeout=180, headers=headers)
@@ -67,9 +70,13 @@ class Otari:
     async def embed(self, texts: list[str], model: str) -> tuple[list[list[float]], "Step"]:
         step = Step(role="memory", model_requested=model, user=self.user)
         t0 = time.perf_counter()
-        r = await self._http.post(f"{self.base_url}/embeddings", json={"model": model, "input": texts},
+        body = {"model": model, "input": texts}
+        if self.tags:
+            body["metadata"] = {**self.tags, "role": "memory"}
+        r = await self._http.post(f"{self.base_url}/embeddings", json=body,
                                   headers={"Authorization": f"Bearer {self.api_key}"})
         step.seconds = round(time.perf_counter() - t0, 2)
+        step.request_id = r.headers.get("otari-request-id", "")
         if r.status_code >= 400:
             step.error = f"{r.status_code} {r.text[:200]}"
             raise OtariError(r.status_code, r.text[:300])
@@ -83,6 +90,28 @@ class Otari:
         step.model_served = data.get("model", model)
         vecs = [d["embedding"] for d in sorted(data.get("data", []), key=lambda d: d.get("index", 0))]
         return vecs, step
+
+    async def receipt(self, request_id: str) -> dict | None:
+        """What Otari's ledger billed for one request (GET /usage/requests/{id}); None if it can't be read."""
+        try:
+            r = await self._http.get(f"{self.base_url}/usage/requests/{request_id}",
+                                     headers={"Authorization": f"Bearer {self.api_key}"}, timeout=20)
+            return r.json() if r.status_code == 200 else None
+        except (httpx.HTTPError, ValueError):
+            return None
+
+    async def execute_code(self, code: str, timeout_s: int = 20) -> tuple[dict, "Step"]:
+        """Run code in Otari's sandbox directly, with no model in the loop (POST /code/execute)."""
+        step = Step(role="sandbox re-run", model_requested="otari_code_execution", user=self.user)
+        t0 = time.perf_counter()
+        r = await self._http.post(f"{self.base_url}/code/execute", json={"code": code, "language": "python"},
+                                  headers={"Authorization": f"Bearer {self.api_key}"}, timeout=timeout_s + 10)
+        step.seconds = round(time.perf_counter() - t0, 2)
+        step.request_id = r.headers.get("otari-request-id", "")
+        if r.status_code >= 400:
+            step.error = f"{r.status_code} {r.text[:200]}"
+            raise OtariError(r.status_code, r.text[:300])
+        return r.json(), step
 
     async def close(self) -> None:
         await self._http.aclose()
@@ -105,12 +134,15 @@ class Otari:
             body["reasoning_effort"] = reasoning_effort
         if max_tool_iterations:
             body["max_tool_iterations"] = max_tool_iterations  # Otari's gateway tool loop (default 10)
+        if self.tags:
+            body["metadata"] = {**self.tags, "role": role}
         step = Step(role=role, model_requested=model, tools=[t.get("type", "") for t in tools or []],
                     mcp=[m["name"] for m in mcp_servers or []], user=self.user)
         t0 = time.perf_counter()
         r = await self._http.post(f"{self.base_url}/chat/completions", json=body,
                                   headers={"Authorization": f"Bearer {self.api_key}"})
         step.seconds = round(time.perf_counter() - t0, 2)
+        step.request_id = r.headers.get("otari-request-id", "")
         if r.status_code >= 400:
             try:
                 j = r.json()

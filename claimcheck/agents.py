@@ -260,6 +260,32 @@ async def check_numbers(client: Otari, claim: dict, research: dict) -> tuple[dic
         return {"applicable": False, "note": content[:300]}, step
 
 
+def _first_number(s: str) -> float | None:
+    m = re.search(r"-?\d[\d,]*\.?\d*", str(s or ""))
+    try:
+        return float(m.group(0).replace(",", "")) if m else None
+    except ValueError:
+        return None
+
+
+async def rerun_numbers(client: Otari, numbers: dict | None) -> tuple[dict | None, Step | None]:
+    """Run the numbers agent's own code again in Otari's sandbox, with no model in the loop, and check that it
+    prints the result the agent reported. Catches an agent that reports a figure its code doesn't produce."""
+    code = str((numbers or {}).get("code") or "").strip()
+    if not (numbers and numbers.get("applicable") and code) or len(code) > 4000:
+        return None, None
+    try:
+        out, step = await client.execute_code(code)
+    except OtariError as e:
+        return {"ran": False, "note": f"Sandbox re-run unavailable: {e.detail[:120]}"}, \
+            Step(role="sandbox re-run", model_requested="otari_code_execution", error=e.detail[:160])
+    stdout = str(out.get("stdout") or "")[:400]
+    want, got = _first_number(numbers.get("result")), [float(x.replace(",", "")) for x in re.findall(r"-?\d[\d,]*\.?\d*", stdout)
+                                                      if x.replace(",", "").replace(".", "").lstrip("-").isdigit()]
+    matches = want is not None and any(abs(g - want) <= max(0.01, abs(want) * 0.005) for g in got)
+    return {"ran": True, "stdout": stdout, "return_code": out.get("return_code"), "matches": matches}, step
+
+
 async def judge(client: Otari, claim: dict, research: dict, numbers: dict | None,
                 model: str | None = None, role: str = "judge") -> tuple[dict, Step]:
     payload = {"claim": claim["text"], "exact_words_in_post": claim.get("quote") or claim["text"],

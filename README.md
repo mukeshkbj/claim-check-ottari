@@ -17,6 +17,11 @@ Built for the Mozilla Otari Hackathon - Devs Wilding Online (DoraHacks), branch 
   "already checked" memory. A juror that is slow or fails is listed as "didn't vote" rather than hidden.
 - **The post, marked up.** Each claim is highlighted where it appears in the post (or the article you linked), in the
   colour of its verdict, and links to its evidence.
+- **Receipts from Otari's ledger.** Every call is tagged with `metadata` (app, check, role). When a check ends, the
+  app looks up each request's billed cost with `GET /usage/requests/{id}` and shows whether Otari's ledger matches
+  what streamed, to the micro-dollar.
+- **Numbers re-run twice.** The numbers agent computes with `otari_code_execution`; then its own code is run again
+  through `POST /code/execute`, with no model in the loop, to confirm it prints the result the agent reported.
 - **How Otari runs the check.** A live route beside the results lights up each step from Otari's real responses:
   guardrails, the routing policy and the model it served, web searches and MCP tools called, the code sandbox, the
   jury and the metered spend, with a count of the rubric's Otari features used.

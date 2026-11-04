@@ -61,6 +61,10 @@ async def _check_claim(client: Otari, claim: dict, q: asyncio.Queue, run_id: str
         numbers, nstep = await agents.check_numbers(client, claim, research)
         if nstep:
             await q.put(_step_event(nstep, cid))
+        rerun, rstep = await agents.rerun_numbers(client, numbers)
+        if rerun:
+            numbers["rerun"] = rerun
+            await q.put(_step_event(rstep, cid))
         if numbers:
             await q.put({"type": "numbers", "claim_id": cid, "numbers": numbers})
         jury_on = config.JURY_ON and config.JURY and research.get("evidence")
@@ -102,11 +106,32 @@ async def _check_claim(client: Otari, claim: dict, q: asyncio.Queue, run_id: str
         await q.put({"type": "error", "claim_id": cid, "message": f"{type(e).__name__}: {e}"})
 
 
+async def _ledger(client: Otari, events: list[dict]) -> dict | None:
+    """Reconcile the cost streamed during the check with what Otari's ledger billed for each request."""
+    steps = [e["step"] for e in events if e.get("type") == "step" and e["step"].get("request_id")]
+    if not steps:
+        return None
+    sem = asyncio.Semaphore(6)
+
+    async def one(rid):
+        async with sem:
+            return await client.receipt(rid)
+    receipts = await asyncio.gather(*(one(s["request_id"]) for s in steps))
+    found = [r for r in receipts if r]
+    billed = round(sum(float(r.get("cost_usd") or 0) for r in found), 6)
+    # Calls that reported a price in their response must agree with the ledger to the micro-dollar
+    priced = [(s, r) for s, r in zip(steps, receipts) if r and s.get("cost_usd") is not None]
+    gap = abs(sum(float(r.get("cost_usd") or 0) for _, r in priced) - sum(s["cost_usd"] for s, _ in priced))
+    return {"type": "ledger", "requests": len(steps), "found": len(found), "billed_usd": billed,
+            "streamed_usd": round(sum(s.get("cost_usd") or 0 for s in steps), 6),
+            "unpriced_in_stream": len(steps) - len(priced), "matches": len(found) == len(steps) and gap < 0.00002}
+
+
 async def run(post: str, api_key: str | None = None, user: str | None = None,
               simulate_outage: bool = False, image: str | None = None) -> AsyncIterator[dict]:
     run_id = uuid.uuid4().hex[:16]
     session = f"claimcheck-{run_id}"
-    client = Otari(api_key=api_key, user=user, session=session)
+    client = Otari(api_key=api_key, user=user, session=session, tags={"app": "claim-check", "check": run_id})
     events: list[dict] = []
     tasks: list[asyncio.Task] = []
     saved_post: str | None = None
@@ -191,6 +216,9 @@ async def run(post: str, api_key: str | None = None, user: str | None = None,
             if ev:
                 yield emit(ev)
         yield emit({"type": "done"})
+        ledger = await _ledger(client, events)
+        if ledger:
+            yield emit(ledger)
         reports.save(run_id, saved_post or post, events)
         yield {"type": "report", "id": run_id}
     finally:
