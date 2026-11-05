@@ -113,6 +113,43 @@ class Otari:
             raise OtariError(r.status_code, r.text[:300])
         return r.json(), step
 
+    async def upload_file(self, data: bytes, filename: str, mime: str) -> tuple[str, "Step"]:
+        """Store a file with Otari's Files API (POST /files) and return its id, for a `file` content block."""
+        step = Step(role="upload", model_requested="otari_files", user=self.user)
+        t0 = time.perf_counter()
+        r = await self._http.post(f"{self.base_url}/files", files={"file": (filename, data, mime)},
+                                  data={"purpose": "user_data"}, headers={"Authorization": f"Bearer {self.api_key}"})
+        step.seconds = round(time.perf_counter() - t0, 2)
+        step.request_id = r.headers.get("otari-request-id", "")
+        if r.status_code >= 400:
+            raise OtariError(r.status_code, r.text[:300])
+        return r.json()["id"], step
+
+    async def direct_fetch(self, url: str, max_chars: int = 40000) -> tuple[dict, "Step"]:
+        """Read one page with Otari's direct fetch (POST /fetch): Otari's URL checks, price and budget, no model."""
+        step = Step(role="fetcher", model_requested="otari /fetch", tools=["otari_web_fetch"], user=self.user)
+        t0 = time.perf_counter()
+        r = await self._http.post(f"{self.base_url}/fetch", json={"url": url, "max_chars": max_chars},
+                                  headers={"Authorization": f"Bearer {self.api_key}"}, timeout=60)
+        step.seconds = round(time.perf_counter() - t0, 2)
+        step.request_id = r.headers.get("otari-request-id", "")
+        if r.status_code >= 400:
+            step.error = f"{r.status_code} {r.text[:200]}"
+            raise OtariError(r.status_code, r.text[:300])
+        data = r.json()
+        step.tool_calls = [{"type": "web_fetch", "status": "completed", "url": data.get("final_url") or url}]
+        step.model_served = data.get("fetch_tool", "builtin_fetch")
+        return data, step
+
+    async def key_budget(self) -> dict | None:
+        """This key's own budget and what is left (GET /key/budget, mozilla-ai/otari#2928). None until it is live."""
+        try:
+            r = await self._http.get(f"{self.base_url}/key/budget", headers={"Authorization": f"Bearer {self.api_key}"},
+                                     timeout=15)
+            return r.json() if r.status_code == 200 else None
+        except (httpx.HTTPError, ValueError):
+            return None
+
     async def close(self) -> None:
         await self._http.aclose()
 

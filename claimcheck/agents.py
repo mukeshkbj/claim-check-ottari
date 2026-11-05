@@ -1,6 +1,7 @@
 """The Claim Check agent team. Each role runs on its own open-weight model via Otari."""
 from __future__ import annotations
 
+import base64
 import datetime as dt
 import json
 import re
@@ -17,7 +18,8 @@ Return ONLY JSON: {"language": "the post's language in English, e.g. French", "c
 "figures": ["300%", "2019"], "search_query": "short web query to verify it",
 "quote": "the exact words of the post that make this claim, copied character for character"}]}
 Rules: rewrite each claim so it stands alone (name who/what/where/when). Keep every number, date and name exactly
-as the post states them, even when you believe they are wrong: a wrong date is exactly what gets checked.
+as the post states them, even when you believe they are wrong: a wrong date is exactly what gets checked. Never swap
+a word for a different one ("the Moon" is not "space").
 Write each claim in the post's own language; write search_query in English, plus the local language if that helps.
 A statement of fact is "factual" (or "numeric" if it states a quantity) even if it looks obviously false.
 Claims about what happened, what causes what, or that something was faked or covered up are "factual"
@@ -112,13 +114,27 @@ def _mcp(rid: str | None = None) -> list[dict] | None:
 
 
 async def read_image(client: Otari, image_data_url: str) -> tuple[str, Step]:
-    """Open-weight vision model (Gemma 3 27B) transcribes a screenshot of a post, via Otari."""
-    content, step = await client.chat(
-        "reader", config.MODELS["reader"],
-        [{"role": "system", "content": READER_PROMPT},
-         {"role": "user", "content": [{"type": "text", "text": "Transcribe this post."},
-                                      {"type": "image_url", "image_url": {"url": image_data_url}}]}],
-        max_tokens=700, temperature=0)
+    """Open-weight vision model (Gemma 3 27B) transcribes a screenshot of a post, via Otari.
+    The image goes through Otari's Files API (fixed for images in mozilla-ai/otari#2725); inline is the fallback."""
+    async def ask(block):
+        return await client.chat(
+            "reader", config.MODELS["reader"],
+            [{"role": "system", "content": READER_PROMPT},
+             {"role": "user", "content": [{"type": "text", "text": "Transcribe this post."}, block]}],
+            max_tokens=700, temperature=0)
+    content, step = None, None
+    try:
+        head, _, b64 = image_data_url.partition(",")
+        mime = head.split(":", 1)[1].split(";", 1)[0]
+        fid, _up = await client.upload_file(base64.b64decode(b64), "screenshot." + mime.split("/")[-1], mime)
+        content, step = await ask({"type": "file", "file": {"file_id": fid}})
+        step.tools = ["otari_files"]
+        if "unprocessable" in (content or "").lower():  # the old behaviour: retry inline
+            content = None
+    except (OtariError, ValueError, IndexError, KeyError):
+        content = None
+    if content is None:
+        content, step = await ask({"type": "image_url", "image_url": {"url": image_data_url}})
     text = content.strip()
     return ("" if text.upper().startswith("NO_TEXT") else text), step
 
@@ -343,12 +359,30 @@ def _nums(s: str) -> list[str]:
     return [n.rstrip(".,") for n in re.findall(r"\d[\d,.]*", s or "")]
 
 
+_SKIP_NAMES = {"the", "this", "that", "these", "those", "and", "but", "breaking", "honestly", "just", "also",
+               "it", "its", "they", "we", "you", "i", "our", "my", "a", "an", "in", "on", "of", "so", "share"}
+
+
+def _names(s: str) -> set[str]:
+    """Capitalised words (Moon, Berlin, Apollo): a rewrite that drops one has changed what is claimed."""
+    out = set()
+    for w in re.findall(r"[A-Za-z][\w'-]*", s or ""):
+        if w[0].isupper() and not w.isupper() and len(w) > 2 and w.lower() not in _SKIP_NAMES:
+            out.add(w.lower())
+    return out
+
+
 def keep_numbers(text: str, said: str) -> str:
-    """A rewrite must not drop the post's numbers: "...landed on the Moon in 1975" must not become "...landed on
-    the Moon" (Llama 3.1 8B did exactly that, and every judge then rightly called the shorter sentence true)."""
+    """A rewrite must not drop the post's numbers or names: "...landed on the Moon in 1975" must not become
+    "...landed on the Moon" (Llama 3.1 8B did exactly that, and every judge then rightly called the shorter sentence
+    true), and "visible from the Moon" must not become "visible from space" (it did that too)."""
     missing = [n for n in _nums(said) if n not in _nums(text)]
-    if not missing:
+    lost_names = _names(said) - {w.lower() for w in re.findall(r"[A-Za-z][\w'-]*", text or "")}
+    if not missing and not lost_names:
         return text
+    if not missing:
+        said = (said or "").strip().strip('"\u201c\u201d')
+        return said if len(said) >= 15 else text
     said = (said or "").strip().strip('"\u201c\u201d')
     if len(said) >= 15:
         return said  # the post's own words, which carry every figure
@@ -370,8 +404,37 @@ def locate(post: str, *candidates: str) -> list[int] | None:
     return None
 
 
+def article_text(text: str) -> str:
+    """Drop menu and navigation lines (short list items, link lists) so the article's own sentences come first."""
+    keep = []
+    for line in (text or "").splitlines():
+        s = line.strip()
+        if not s:
+            continue
+        words = s.lstrip("-*#> ").split()
+        if s[:1] in "-*" and len(words) <= 6:
+            continue          # "- Afrikaans", "- Main page", "- Donate"
+        if len(words) < 6 and not s.startswith("#"):
+            continue          # stray labels and buttons
+        keep.append(s)
+    return "\n".join(keep)
+
+
 async def fetch_page(client: Otari, url: str) -> tuple[dict | None, Step]:
-    """Read an article through Otari's web fetch tool. Returns None if nothing was fetched."""
+    """Read an article: Otari's direct fetch first (POST /fetch, ~1 s, no model), then a model with the
+    otari_web_fetch tool if that fails. Returns None if nothing could be read."""
+    try:
+        data, step = await client.direct_fetch(url)
+        body = article_text(data.get("text") or "")
+        title = (data.get("title") or "").strip()
+        if not title:
+            first = next((l for l in (data.get("text") or "").splitlines() if l.startswith("# ")), "")
+            title = first.lstrip("# ").strip()
+        if len(body) >= 300:
+            return {"url": data.get("final_url") or url, "title": title[:200] or url, "text": body[:6000],
+                    "via": "direct"}, step
+    except OtariError:
+        pass
     content, step = await client.chat(
         "fetcher", config.MODELS["fetcher"],
         [{"role": "system", "content": FETCH_PROMPT}, {"role": "user", "content": url}],

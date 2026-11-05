@@ -113,3 +113,20 @@ def test_ledger_reconciles_priced_calls_and_counts_unpriced_ones():
               {"type": "step", "step": {"request_id": "c", "cost_usd": None}}]   # e.g. a sandbox re-run
     led = asyncio.run(pipeline._ledger(C(), events))
     assert (led["found"], led["billed_usd"], led["streamed_usd"], led["unpriced_in_stream"], led["matches"]) == (3, 0.022, 0.012, 1, True)
+
+
+def test_article_text_drops_navigation_and_keeps_sentences():
+    raw = ("# Mount Everest\n- Acèh\n- Afrikaans\n- Main page\nDonate\n"
+           "Mount Everest is Earth's highest mountain above sea level, in the Mahalangur Himal sub-range of the Himalayas.\n"
+           "- The China-Nepal border runs across its summit point, and its elevation is 8,848.86 m.\n")
+    out = agents.article_text(raw)
+    assert "Afrikaans" not in out and "Donate" not in out and out.startswith("# Mount Everest")
+    assert "highest mountain" in out and "summit point" in out
+
+
+def test_rewrite_never_swaps_a_name():
+    said = "BREAKING: The Great Wall of China is visible from the Moon"
+    assert agents.keep_numbers("The Great Wall of China is visible from space", said) == said
+    # resolving a pronoun or dropping filler is fine
+    assert agents.keep_numbers("The Eiffel Tower is in Paris", "Honestly, the Eiffel Tower is in Paris") \
+        == "The Eiffel Tower is in Paris"

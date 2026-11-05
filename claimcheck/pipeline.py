@@ -219,6 +219,12 @@ async def run(post: str, api_key: str | None = None, user: str | None = None,
         ledger = await _ledger(client, events)
         if ledger:
             yield emit(ledger)
+        kb = await client.key_budget()  # live once mozilla-ai/otari#2928 ships; silent until then
+        if kb:
+            lim = next((l for l in kb.get("limits") or [] if l.get("limit_usd") is not None), {})
+            yield emit({"type": "key_budget", "user": user, "remaining_usd": kb.get("remaining_usd"),
+                        "limit_usd": lim.get("limit_usd"), "used_usd": lim.get("used_usd"),
+                        "resets_at": lim.get("resets_at") or lim.get("reset_at")})
         reports.save(run_id, saved_post or post, events)
         yield {"type": "report", "id": run_id}
     finally:

@@ -336,8 +336,10 @@ function onStep(s){
       "Llama Guard 4 and gpt-oss-safeguard: " + s.guardrails.map(g => `${g.profile} ${g.valid === false ? "flagged" : g.valid ? "passed"
         : g.status ? `no verdict (${String(g.reason || g.status).replace(/_/g, " ")})` : "no verdict"}`).join(", ")); }
   switch (s.role){
-    case "reader": setSt("read", s.error ? "bad" : "done", s.error || `Screenshot read by ${short(model)}`); break;
-    case "fetcher": setSt("read", s.error ? "bad" : "done", s.error || `Otari web fetch, read by ${short(model)}`); break;
+    case "reader": setSt("read", s.error ? "bad" : "done", s.error || `Screenshot read by ${short(model)}` +
+      ((s.tools || []).includes("otari_files") ? ", sent through Otari Files" : "")); break;
+    case "fetcher": setSt("read", s.error ? "bad" : "done", s.error || (s.model_requested === "otari /fetch"
+      ? "Read with Otari's direct fetch (POST /fetch), no model needed" : `Otari web fetch, read by ${short(model)}`)); break;
     case "extractor":
       if (s.fell_back){ R.fell = short(model); setSt("extract", "warn", `Policy ${s.model_requested}: first provider failed, fell back to ${short(model)} (attempt ${s.attempts})`); }
       else setSt("extract", s.error ? "bad" : "done", s.error || `Policy ${s.model_requested}, served by ${short(model)}`);
@@ -483,6 +485,9 @@ function handle(ev){
     case "done": setStatus("Done");
       ["research", "jury", "memory"].forEach(k => { if (R.st[k] === "run") setSt(k, "done"); }); renderRoute(); break;
     case "report": showShare(ev.id); break;
+    case "key_budget": { const left = Number(ev.remaining_usd), lim = Number(ev.limit_usd);
+      if (!isNaN(left)) { setSt("spend", R.over ? "bad" : "done", (R.det.spend || "") + `. ${ev.user ? ev.user + "'s key" : "This key"} has $${left.toFixed(2)} left` +
+        (!isNaN(lim) && ev.limit_usd != null ? ` of $${lim.toFixed(2)}` : "") + (ev.resets_at ? `, resetting ${new Date(ev.resets_at).toLocaleDateString()}` : "")); renderRoute(); } break; }
     case "ledger": setSt("spend", R.over ? "bad" : "done", (R.det.spend || "") + `. Otari's ledger billed $${Number(ev.billed_usd).toFixed(4)} for ${ev.found} of ${ev.requests} requests` +
       (ev.matches ? ", matching every priced call to the micro-dollar" : "")); renderRoute(); break;
   }

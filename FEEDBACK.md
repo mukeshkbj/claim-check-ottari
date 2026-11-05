@@ -27,21 +27,21 @@ Note friction as it happens - this becomes the required feedback video + written
 | 2026-10-30 | Second opinion across model families | Running Mistral Small 3.2 24B next to gpt-oss-120b as a second judge was one extra call with a different model id; Llama 3.3 70B gave the same verdicts but took 15 s vs 2.5 s, which the Otari trace made easy to see. | Worked well |
 
 ## Issues / PRs opened on mozilla-ai/otari
-| # | Type | Title | Status (4 Nov) |
+| # | Type | Title | Status (5 Nov) |
 | --- | --- | --- | --- |
 | [#2720](https://github.com/mozilla-ai/otari/pull/2720) | PR (docs) | docs: name the EU host for otari.ai accounts in the EU region | Merged (approved by daavoo) |
 | [#2719](https://github.com/mozilla-ai/otari/issues/2719) | Bug | Hosted Otari.ai: otari_code_execution always returns 402 pricing_required, and workspaces can't set the price | Fixed the same day; confirmed working in Claim Check |
 | [#2721](https://github.com/mozilla-ai/otari/issues/2721) | Bug | Hosted otari.ai: signing in on the default US region silently creates an empty second account for an EU user | Fixed: the region picker now defaults by location (next release) |
 | [#2722](https://github.com/mozilla-ai/otari/issues/2722) | Feature | A keyless, open-weight guardrail on hosted otari.ai (Llama Guard 4 / gpt-oss-safeguard via /validate) | Open; related fix (live on hosted 4 Nov) [#2763](https://github.com/mozilla-ai/otari/pull/2763) merged (guardrail header now says why a verdict is empty; API keys can list profiles) |
-| [#2725](https://github.com/mozilla-ai/otari/issues/2725) | Bug | Hosted otari.ai: an image uploaded to /files and referenced by file_id reaches the model as 'unprocessable attachment' | Open |
+| [#2725](https://github.com/mozilla-ai/otari/issues/2725) | Bug | Hosted otari.ai: an image uploaded to /files and referenced by file_id reaches the model as 'unprocessable attachment' | Fixed in [#2848](https://github.com/mozilla-ai/otari/pull/2848); Claim Check now sends screenshots through Files |
 | [#2726](https://github.com/mozilla-ai/otari/issues/2726) | Feature | Let a workspace key teach and read its own smart-router memory on hosted otari.ai | Done in [#2766](https://github.com/mozilla-ai/otari/pull/2766); Mozilla then found the learned router stored prompts in plaintext and removed it in [#2829](https://github.com/mozilla-ai/otari/pull/2829) |
 | [#2719](https://github.com/mozilla-ai/otari/issues/2719#issuecomment-6529196072) | Comment | Thank-you: code execution confirmed working on hosted after the fix | - |
 | [#2691](https://github.com/mozilla-ai/otari/issues/2691#issuecomment-6526674319) | Comment | Added code-execution repro to the existing "/api/v1/tools reports web tools as available" bug | Closed |
 | [#2814](https://github.com/mozilla-ai/otari/issues/2814) | Feature | Let a Fallback policy move on when a candidate refuses with a 200 (content_filter, or unparseable JSON when JSON was requested) | Open (filed 3 Nov) |
 | [#2815](https://github.com/mozilla-ai/otari/pull/2815) | PR (docs) | docs: say OTARI_BASE_URL is also for otari.ai's EU region in the integration READMEs (follow-up to #2720) | Merged (approved by daavoo), in v0.37.0 |
 | #2721, #2726, #2691 | Comments | Thank-you replies after the fixes; data point for another hacker on #2691 | 3 Nov |
-| [#2863](https://github.com/mozilla-ai/otari/issues/2863) | Feature | Let an API key read its own usage summary and budget on hosted otari.ai | Open (filed 4 Nov) |
-| [#2864](https://github.com/mozilla-ai/otari/issues/2864) | Feature | Return usage.cost_usd on POST /api/v1/code/execute (billed $0.01, but the response carries no cost) | Open (filed 4 Nov) |
+| [#2863](https://github.com/mozilla-ai/otari/issues/2863) | Feature | Let an API key read its own usage summary and budget on hosted otari.ai | In progress: [#2928](https://github.com/mozilla-ai/otari/pull/2928) adds `/key/budget` and `/key/usage/*`, citing Claim Check |
+| [#2864](https://github.com/mozilla-ai/otari/issues/2864) | Feature | Return usage.cost_usd on POST /api/v1/code/execute (billed $0.01, but the response carries no cost) | Open; the new `POST /fetch` ([#2878](https://github.com/mozilla-ai/otari/pull/2878)) has the same gap |
 | [#2865](https://github.com/mozilla-ai/otari/issues/2865) | Feature | A rerank-capable model on hosted otari.ai | Open (filed 4 Nov) |
 | #2726, #2722 | Comments | Thanks for the #2829 follow-up; confirmed the guardrail status header is live | 4 Nov |
 

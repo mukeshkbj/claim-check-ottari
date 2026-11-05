@@ -10,13 +10,18 @@ Built for the Mozilla Otari Hackathon - Devs Wilding Online (DoraHacks), branch 
 **Live demo:** https://claim-check-tr4f.onrender.com (free tier - first load can take ~50 s to wake up)
 
 ## What it can do
-- **Paste a link.** Give it a news article or post URL: Otari's `otari_web_fetch` reads the page and the claims in it are checked.
+- **Paste a link.** Give it a news article or post URL: Otari's direct fetch (`POST /fetch`, about 1 s, no model) reads
+  the page, menus are stripped, and the claims in it are checked. If the direct fetch fails, a model with the
+  `otari_web_fetch` tool reads it instead.
 - **A jury from four labs.** gpt-oss-120b (OpenAI) presides; Qwen3 30B (Alibaba), Nemotron Nano 9B (NVIDIA) and
   Gemma 4 26B (Google) weigh exactly the same evidence in parallel. A unanimous jury is shown as such; dissent is
   shown with each juror's reason, a contested verdict drops to low confidence, and only unanimous verdicts go into the
   "already checked" memory. A juror that is slow or fails is listed as "didn't vote" rather than hidden.
 - **The post, marked up.** Each claim is highlighted where it appears in the post (or the article you linked), in the
   colour of its verdict, and links to its evidence.
+- **A rewrite can't change the claim.** The small extractor sometimes "tidies" a claim: it once dropped "in 1975", and
+  once turned "visible from the Moon" into "visible from space". If a rewrite loses a number, date or name from the
+  post's own words, the claim falls back to those words, and the judges always see them.
 - **Receipts from Otari's ledger.** Every call is tagged with `metadata` (app, check, role). When a check ends, the
   app looks up each request's billed cost with `GET /usage/requests/{id}` and shows whether Otari's ledger matches
   what streamed, to the micro-dollar.
@@ -29,7 +34,8 @@ Built for the Mozilla Otari Hackathon - Devs Wilding Online (DoraHacks), branch 
   the original (Gemma 3 27B). It never invents links: they come from the evidence.
 - **Link previews.** Every shared report has a share card image (`/r/<id>/card.png`) and Open Graph tags, so a pasted
   link shows the verdicts in chats and social apps.
-- **Paste text or a screenshot.** Screenshots are read by open-weight **Gemma 3 27B** through Otari (paste with Ctrl+V or upload).
+- **Paste text or a screenshot.** Screenshots are uploaded to Otari's Files API and read by open-weight **Gemma 3 27B**
+  (paste with Ctrl+V or upload); sending the image inline is the fallback.
 - **Any language.** Claims stay in the post's language and the verdict is explained in it; searches run in English and the local language.
 - **"Already checked" memory.** Otari embeddings (`qwen3-embedding-0.6b`) spot a claim checked in the last 7 days and reuse its verdict
   in ~3 s instead of ~17 s. A match also needs near-identical words and the same numbers, so "...is in Paris" never reuses "...is in Berlin";
