@@ -175,6 +175,27 @@ def app_config():
             "guardrails": bool(config.GUARD_URL), "mcp": bool(config.MCP_URL)}
 
 
+_budget_cache: dict = {"at": 0.0, "data": []}
+
+
+@app.get("/api/volunteers")
+async def volunteer_budgets():
+    """Each volunteer's remaining budget, read with their own key from Otari's GET /key/budget. Keys stay server-side."""
+    if time.monotonic() - _budget_cache["at"] < 30:
+        return _budget_cache["data"]
+    async def one(name):
+        c = Otari(api_key=config.VOLUNTEER_KEYS[name], user=name)
+        try:
+            kb = await c.key_budget() or {}
+        finally:
+            await c.close()
+        lim = next((l for l in kb.get("limits") or [] if l.get("limit_usd") is not None), {})
+        return {"name": name, "remaining_usd": kb.get("remaining_usd"), "limit_usd": lim.get("limit_usd")}
+    data = list(await asyncio.gather(*(one(n) for n in config.VOLUNTEERS)))
+    _budget_cache.update(at=time.monotonic(), data=data)
+    return data
+
+
 @app.post("/api/check")
 async def check(req: CheckRequest, request: Request):
     if len(req.post.strip()) < 10 and not req.image:

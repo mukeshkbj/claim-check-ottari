@@ -292,7 +292,8 @@ let shot = null, lastPost = "", lastVerdicts = {}, cost = 0, steps = 0, claimsBy
 fetch("/api/config").then(r => r.json()).then(c => {
   if (c.volunteers.length){ $("#vwrap").hidden = false;
     $("#volunteer").innerHTML = `<option value="">you (demo key)</option>` +
-      c.volunteers.map(v => `<option value="${esc(v)}">${esc(v)} (own Otari key and budget)</option>`).join(""); }
+      c.volunteers.map(v => `<option value="${esc(v)}">${esc(v)} (own Otari key and budget)</option>`).join("");
+    loadBudgets(); }
 }).catch(() => {});
 
 /* ---------- the Otari route: stations driven by real response data */
@@ -304,6 +305,15 @@ const STATIONS = [
 const RUBRIC = [["routing","Routing and fallbacks"],["mcp","MCP"],["search","Web search and fetch"],["code","Code execution"],
   ["budget","Budgets"],["roles","Models in distinct roles"],["guard","Guardrails"],["peruser","Per-user budgets"]];
 let R;
+/* each volunteer's remaining budget, read server-side with their own key (Otari GET /key/budget) */
+function loadBudgets(){
+  fetch("/api/volunteers").then(r => r.ok ? r.json() : []).then(list => list.forEach(b => {
+    const o = [...$("#volunteer").options].find(x => x.value === b.name);
+    const usd = v => "$" + (v < 0.1 ? v.toFixed(4) : v.toFixed(2));
+    if (o && b.remaining_usd != null) o.textContent = `${b.name} (${usd(Number(b.remaining_usd))}` +
+      (b.limit_usd != null ? ` of ${usd(Number(b.limit_usd))}` : "") + " left on own Otari key)";
+  })).catch(() => {});
+}
 function resetRoute(){
   R = {st:{}, det:{}, models:new Set(), roles:new Set(), searches:0, fetches:0, mcp:new Set(), mcpAttached:false, guards:null,
        spend:0, user:null, over:false, fell:null, tier:null, policy:false, code:null, jurors:new Set(), memory:null, reused:0, used:{}};
@@ -365,7 +375,8 @@ function onStep(s){
   if (R.user) R.used.peruser = true;
   setSt("spend", R.over ? "bad" : R.spend ? "done" : "", R.over ? `${R.user || "This key"}: monthly budget used up` :
     `$${R.spend.toFixed(4)} metered by Otari on ${R.user ? R.user + "'s own key and budget" : "the demo key's budget"}` +
-    (R.tier ? `; judge tiered down to ${R.tier}` : ""));
+    (R.tier ? `; judge tiered down to ${R.tier}` : "") + (R.kb0 ? `. ${R.kb0}` : ""));
+  R.base = R.det.spend;
   renderRoute();
 }
 const LABS = [["gpt-oss","OpenAI"],["qwen","Alibaba"],["nemotron","NVIDIA"],["gemma","Google"],["llama","Meta"],["mistral","Mistral AI"],["deepseek","DeepSeek"]];
@@ -484,12 +495,28 @@ function handle(ev){
       setStatus("Budget reached"); break;
     case "done": setStatus("Done");
       ["research", "jury", "memory"].forEach(k => { if (R.st[k] === "run") setSt(k, "done"); }); renderRoute(); break;
-    case "report": showShare(ev.id); break;
+    case "report": showShare(ev.id); if (R.user) setTimeout(loadBudgets, 31000); break;
     case "key_budget": { const left = Number(ev.remaining_usd), lim = Number(ev.limit_usd);
-      if (!isNaN(left)) { setSt("spend", R.over ? "bad" : "done", (R.det.spend || "") + `. ${ev.user ? ev.user + "'s key" : "This key"} has $${left.toFixed(2)} left` +
-        (!isNaN(lim) && ev.limit_usd != null ? ` of $${lim.toFixed(2)}` : "") + (ev.resets_at ? `, resetting ${new Date(ev.resets_at).toLocaleDateString()}` : "")); renderRoute(); } break; }
-    case "ledger": setSt("spend", R.over ? "bad" : "done", (R.det.spend || "") + `. Otari's ledger billed $${Number(ev.billed_usd).toFixed(4)} for ${ev.found} of ${ev.requests} requests` +
-      (ev.matches ? ", matching every priced call to the micro-dollar" : "")); renderRoute(); break;
+      if (isNaN(left)) break;
+      const usd = v => "$" + (v < 0.1 ? v.toFixed(4) : v.toFixed(2)), who = ev.user ? ev.user + "'s key" : "This key";
+      const of = ev.limit_usd != null && !isNaN(lim) ? ` of ${usd(lim)}` : "";
+      if (ev.stage === "start") {  // read before anything is spent, with the volunteer's own key
+        R.used.peruser = true; R.left0 = left;
+        R.kb0 = `${who} (Otari GET /key/budget): ${usd(left)}${of} left before the check` +
+          (left < 0.01 ? ", which may not cover it, so Otari will stop it when it runs out" : "");
+        setSt("spend", "run", R.kb0); renderRoute(); break; }
+      const drop = R.left0 != null ? R.left0 - left : null;
+      const exact = drop != null && R.billed != null && Math.abs(drop - R.billed) < 0.00002;
+      setSt("spend", R.over ? "bad" : "done", (R.det.spend || "") +
+        (R.left0 != null ? `, ${usd(left)} after` : `. ${who} has ${usd(left)}${of} left`) +
+        (exact ? `: down $${drop.toFixed(6)}, exactly what the ledger billed` : "") +
+        (ev.resets_at ? `. Resets ${new Date(ev.resets_at).toLocaleDateString("en-GB", {day: "numeric", month: "short", year: "numeric"})}` : "")); renderRoute(); break; }
+    case "ledger": { R.billed = Number(ev.billed_usd);
+      const led = `Otari's ledger billed $${Number(ev.billed_usd).toFixed(4)} for ${ev.found} of ${ev.requests} requests` +
+        (ev.matches ? ", matching every priced call to the micro-dollar" : "");
+      const base = R.base || R.det.spend || "";  // keep the key's before/after budget as the last sentence
+      setSt("spend", R.over ? "bad" : "done", R.kb0 && base.endsWith(R.kb0) ? base.slice(0, -R.kb0.length) + led + ". " + R.kb0 : base + ". " + led);
+      renderRoute(); break; }
   }
 }
 

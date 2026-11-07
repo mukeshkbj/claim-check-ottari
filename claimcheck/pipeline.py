@@ -127,6 +127,17 @@ async def _ledger(client: Otari, events: list[dict]) -> dict | None:
             "unpriced_in_stream": len(steps) - len(priced), "matches": len(found) == len(steps) and gap < 0.00002}
 
 
+
+def _key_budget_event(kb: dict | None, user: str | None, stage: str) -> dict | None:
+    """A key's own budget from Otari (GET /key/budget): what is left, of what limit, and when it resets."""
+    if not kb or kb.get("remaining_usd") is None:
+        return None
+    lim = next((l for l in kb.get("limits") or [] if l.get("limit_usd") is not None), {})
+    return {"type": "key_budget", "stage": stage, "user": user, "remaining_usd": kb.get("remaining_usd"),
+            "limit_usd": lim.get("limit_usd"), "used_usd": lim.get("used_usd"),
+            "resets_at": lim.get("resets_at") or lim.get("reset_at"), "enforced": kb.get("budgets_enforced")}
+
+
 async def run(post: str, api_key: str | None = None, user: str | None = None,
               simulate_outage: bool = False, image: str | None = None) -> AsyncIterator[dict]:
     run_id = uuid.uuid4().hex[:16]
@@ -145,6 +156,8 @@ async def run(post: str, api_key: str | None = None, user: str | None = None,
         yield emit({"type": "session", "id": session})
         if user:
             yield emit({"type": "user", "user": user})
+            # What this volunteer's own key has left before we spend anything (Otari GET /key/budget)
+            yield emit(_key_budget_event(await client.key_budget(), user, "start"))
         if image:
             yield {"type": "status", "message": "Reading the screenshot (Gemma 3 27B)"}
             try:
@@ -219,12 +232,7 @@ async def run(post: str, api_key: str | None = None, user: str | None = None,
         ledger = await _ledger(client, events)
         if ledger:
             yield emit(ledger)
-        kb = await client.key_budget()  # live once mozilla-ai/otari#2928 ships; silent until then
-        if kb:
-            lim = next((l for l in kb.get("limits") or [] if l.get("limit_usd") is not None), {})
-            yield emit({"type": "key_budget", "user": user, "remaining_usd": kb.get("remaining_usd"),
-                        "limit_usd": lim.get("limit_usd"), "used_usd": lim.get("used_usd"),
-                        "resets_at": lim.get("resets_at") or lim.get("reset_at")})
+        yield emit(_key_budget_event(await client.key_budget(), user, "end"))  # GET /key/budget (otari#2928)
         reports.save(run_id, saved_post or post, events)
         yield {"type": "report", "id": run_id}
     finally:

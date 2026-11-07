@@ -27,7 +27,7 @@ Note friction as it happens - this becomes the required feedback video + written
 | 2026-10-30 | Second opinion across model families | Running Mistral Small 3.2 24B next to gpt-oss-120b as a second judge was one extra call with a different model id; Llama 3.3 70B gave the same verdicts but took 15 s vs 2.5 s, which the Otari trace made easy to see. | Worked well |
 
 ## Issues / PRs opened on mozilla-ai/otari
-| # | Type | Title | Status (5 Nov) |
+| # | Type | Title | Status (7 Nov) |
 | --- | --- | --- | --- |
 | [#2720](https://github.com/mozilla-ai/otari/pull/2720) | PR (docs) | docs: name the EU host for otari.ai accounts in the EU region | Merged (approved by daavoo) |
 | [#2719](https://github.com/mozilla-ai/otari/issues/2719) | Bug | Hosted Otari.ai: otari_code_execution always returns 402 pricing_required, and workspaces can't set the price | Fixed the same day; confirmed working in Claim Check |
@@ -40,7 +40,7 @@ Note friction as it happens - this becomes the required feedback video + written
 | [#2814](https://github.com/mozilla-ai/otari/issues/2814) | Feature | Let a Fallback policy move on when a candidate refuses with a 200 (content_filter, or unparseable JSON when JSON was requested) | Open (filed 3 Nov) |
 | [#2815](https://github.com/mozilla-ai/otari/pull/2815) | PR (docs) | docs: say OTARI_BASE_URL is also for otari.ai's EU region in the integration READMEs (follow-up to #2720) | Merged (approved by daavoo), in v0.37.0 |
 | #2721, #2726, #2691 | Comments | Thank-you replies after the fixes; data point for another hacker on #2691 | 3 Nov |
-| [#2863](https://github.com/mozilla-ai/otari/issues/2863) | Feature | Let an API key read its own usage summary and budget on hosted otari.ai | In progress: [#2928](https://github.com/mozilla-ai/otari/pull/2928) adds `/key/budget` and `/key/usage/*`, citing Claim Check |
+| [#2863](https://github.com/mozilla-ai/otari/issues/2863) | Feature | Let an API key read its own usage summary and budget on hosted otari.ai | Fixed: [#2928](https://github.com/mozilla-ai/otari/pull/2928) (merged 5 Nov, v0.40.0) adds `/key/budget` and `/key/usage/*`, citing Claim Check. Live on hosted EU; Claim Check now shows each volunteer's budget before and after a check |
 | [#2864](https://github.com/mozilla-ai/otari/issues/2864) | Feature | Return usage.cost_usd on POST /api/v1/code/execute (billed $0.01, but the response carries no cost) | Open; the new `POST /fetch` ([#2878](https://github.com/mozilla-ai/otari/pull/2878)) has the same gap |
 | [#2865](https://github.com/mozilla-ai/otari/issues/2865) | Feature | A rerank-capable model on hosted otari.ai | Open (filed 4 Nov) |
 | #2726, #2722 | Comments | Thanks for the #2829 follow-up; confirmed the guardrail status header is live | 4 Nov |

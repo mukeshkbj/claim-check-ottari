@@ -130,3 +130,14 @@ def test_rewrite_never_swaps_a_name():
     # resolving a pronoun or dropping filler is fine
     assert agents.keep_numbers("The Eiffel Tower is in Paris", "Honestly, the Eiffel Tower is in Paris") \
         == "The Eiffel Tower is in Paris"
+
+
+def test_key_budget_event_from_otari_shape():
+    from claimcheck.pipeline import _key_budget_event
+    kb = {"budgets_enforced": True, "remaining_usd": 0.02, "limits": [
+        {"scope": "api_token", "resets_at": "2026-12-01T00:00:00Z", "limit_usd": 0.02, "used_usd": 0.0, "remaining_usd": 0.02}]}
+    ev = _key_budget_event(kb, "bob", "start")
+    assert ev["stage"] == "start" and ev["user"] == "bob" and ev["remaining_usd"] == 0.02
+    assert ev["limit_usd"] == 0.02 and ev["resets_at"].startswith("2026-12-01") and ev["enforced"] is True
+    assert _key_budget_event(None, "bob", "end") is None  # endpoint missing or not 200: say nothing
+    assert _key_budget_event({"limits": []}, None, "end") is None
