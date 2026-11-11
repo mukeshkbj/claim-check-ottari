@@ -19,11 +19,6 @@ Note friction as it happens - this becomes the required feedback video + written
 | 2026-10-30 | Sessions | `Otari-Conversation-Id` groups every call of one check into a session with no other changes. | None needed | Worked well | None |
 | 2026-10-30 | Embeddings | `POST /embeddings` with `qwen3-embedding-0.6b` worked first time and is cheap. | None needed | Worked well | None |
 
-## Written answers (fill before 11 Nov)
-
-1. When were you most tempted to skip Otari and call the provider directly? What happened?
-2. What did you end up building yourself that Otari should have done for you?
-3. If the rules hadn't required Otari, would you have continued using it? Why or why not?
 
 ## Issues / PRs opened on mozilla-ai/otari
 
